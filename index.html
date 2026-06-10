@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prospechercheur · Recherche avancée d'entreprises</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f7f8fa;
+    --bg-card: #f4f6f9;
+    --bg-elev: #eef1f5;
+    --border: #e2e6ec;
+    --border-soft: #eef1f4;
+    --text: #1a1f29;
+    --text-dim: #5a6573;
+    --text-faint: #8a94a3;
+    --accent: #2f6bff;
+    --accent-soft: #e6efff;
+    --accent-2: #0ea871;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 8px 30px rgba(20,30,50,.12);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; font-size: 14px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* Layout */
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+  header.topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(255,255,255,.88); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+  }
+  .topbar-row { display: flex; align-items: center; gap: 16px; max-width: 1500px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -.2px; white-space: nowrap; }
+  .brand .logo {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    display: grid; place-items: center; font-size: 16px;
+  }
+  .brand small { display:block; font-weight: 500; font-size: 11px; color: var(--text-faint); letter-spacing: 0; }
+
+  .smartbar { flex: 1; display: flex; gap: 8px; align-items: center; }
+  .smartbar .field { flex: 1; position: relative; }
+  .smartbar input {
+    width: 100%; padding: 11px 14px 11px 40px; border-radius: 10px;
+    background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+    outline: none; transition: border .15s, box-shadow .15s;
+  }
+  .smartbar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .smartbar .field .ico { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text-faint); }
+  .btn {
+    padding: 11px 18px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-elev); color: var(--text); font-weight: 600; white-space: nowrap;
+    transition: background .15s, border .15s, transform .05s;
+  }
+  .btn:hover { background: #e7ebf1; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #4b7cf0; }
+  .btn.ghost { background: transparent; }
+  .btn.sm { padding: 6px 11px; font-size: 12.5px; border-radius: 8px; }
+  .btn.icon { padding: 9px 11px; }
+
+  .main { display: flex; gap: 0; flex: 1; max-width: 1500px; margin: 0 auto; width: 100%; }
+  /* Filters sidebar */
+  aside.filters {
+    width: 290px; flex-shrink: 0; border-right: 1px solid var(--border);
+    padding: 18px 16px 60px; height: calc(100vh - 61px); overflow-y: auto; position: sticky; top: 61px;
+  }
+  aside.filters.collapsed { display: none; }
+  .filter-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .filter-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin: 0; }
+  .fgroup { margin-bottom: 18px; border-bottom: 1px solid var(--border-soft); padding-bottom: 16px; }
+  .fgroup:last-child { border-bottom: none; }
+  .fgroup > label.title { display: block; font-weight: 600; font-size: 12.5px; margin-bottom: 8px; color: var(--text); }
+  .fgroup input[type=text], .fgroup input[type=number], .fgroup select {
+    width: 100%; padding: 8px 10px; border-radius: 8px; background: var(--bg-card);
+    border: 1px solid var(--border); color: var(--text); outline: none; margin-bottom: 6px;
+  }
+  .fgroup input:focus, .fgroup select:focus { border-color: var(--accent); }
+  .row2 { display: flex; gap: 6px; }
+  .row2 > * { flex: 1; min-width: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    padding: 6px 10px; border-radius: 20px; background: var(--bg-card); border: 1px solid var(--border);
+    font-size: 12px; color: var(--text-dim); user-select: none; transition: all .12s;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--text); }
+  .chip.on { background: var(--accent-soft); border-color: var(--accent); color: #cdddff; }
+  .check { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 13px; color: var(--text-dim); cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .check:hover { color: var(--text); }
+  .hint { font-size: 11.5px; color: var(--text-faint); margin: 2px 0 8px; }
+  .autocomplete { position: relative; }
+  .ac-list { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; margin-top: 2px; max-height: 220px; overflow-y: auto; box-shadow: var(--shadow); }
+  .ac-list div { padding: 8px 10px; cursor: pointer; font-size: 13px; }
+  .ac-list div:hover, .ac-list div.active { background: var(--accent-soft); }
+
+  /* Results */
+  .content { flex: 1; min-width: 0; padding: 18px 22px 60px; }
+  .results-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .results-head .count { font-size: 13px; color: var(--text-dim); }
+  .results-head .count b { color: var(--text); }
+  .active-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 16px;
+    background: var(--bg-elev); border: 1px solid var(--border); font-size: 11.5px; color: var(--text-dim);
+  }
+  .tag b { color: var(--text); font-weight: 600; }
+  .tag .x { cursor: pointer; color: var(--text-faint); font-weight: 700; }
+  .tag .x:hover { color: var(--danger); }
+  .spacer { flex: 1; }
+
+  .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg-soft); }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-faint); padding: 11px 14px; border-bottom: 1px solid var(--border);
+    background: var(--bg-card); white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0;
+  }
+  thead th:hover { color: var(--text-dim); }
+  thead th .arrow { opacity: .5; font-size: 10px; }
+  tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  tbody tr { transition: background .1s; cursor: pointer; }
+  tbody tr:hover { background: var(--bg-card); }
+  tbody tr:last-child td { border-bottom: none; }
+  .cname { font-weight: 600; color: var(--text); }
+  .cmeta { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  }
+  .badge.active { background: rgba(14,168,113,.13); color: #07845a; }
+  .badge.closed { background: rgba(220,38,38,.10); color: #c81e1e; }
+  .badge.new { background: rgba(217,119,6,.14); color: #b45309; }
+  .badge.label { background: var(--accent-soft); color: #1d4ed8; margin: 0 3px 3px 0; }
+  .badge.hot { background: rgba(225,29,72,.12); color: #e11d48; }
+  .badge.warm { background: rgba(217,119,6,.14); color: #b45309; }
+  .badge.cold { background: rgba(100,116,139,.12); color: var(--text-dim); }
+  .intent-pill { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:14px; font-size:11.5px; font-weight:700; }
+  .intent-pill.hot { background: rgba(225,29,72,.12); color:#e11d48; }
+  .intent-pill.warm { background: rgba(217,119,6,.14); color:#b45309; }
+  .intent-pill.cold { background: rgba(100,116,139,.12); color: var(--text-dim); }
+  .score-bar { height:5px; border-radius:4px; background:var(--border); overflow:hidden; width:54px; margin-top:5px; }
+  .score-bar > i { display:block; height:100%; border-radius:4px; }
+  .signal-row { display:flex; align-items:flex-start; gap:8px; padding:7px 0; font-size:13px; border-bottom:1px solid var(--border-soft); }
+  .signal-row:last-child{ border-bottom:none; }
+  .signal-row .sdot { width:8px; height:8px; border-radius:50%; margin-top:6px; flex-shrink:0; }
+  .sdot.hot{ background:#e11d48; } .sdot.warm{ background:#d97706; } .sdot.cold{ background:var(--text-faint); }
+  .siren-mono { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+  .enriched-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background: var(--accent-2); margin-left:6px; vertical-align: middle; }
+
+  .pager { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; }
+  .pager button { padding: 7px 13px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); }
+  .pager button:disabled { opacity: .4; cursor: default; }
+  .pager span { font-size: 13px; color: var(--text-dim); }
+
+  /* states */
+  .state { text-align: center; padding: 70px 20px; color: var(--text-faint); }
+  .state .big { font-size: 40px; margin-bottom: 10px; }
+  .state h3 { color: var(--text-dim); font-weight: 600; margin: 0 0 6px; }
+  .spinner { width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton-row td { padding: 14px; }
+  .sk { height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--bg-card), var(--bg-elev), var(--bg-card)); background-size: 200% 100%; animation: sh 1.2s infinite; }
+  @keyframes sh { to { background-position: -200% 0; } }
+
+  /* Detail drawer */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 60; opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100vh; width: 640px; max-width: 94vw; z-index: 70;
+    background: var(--bg-soft); border-left: 1px solid var(--border); box-shadow: var(--shadow);
+    transform: translateX(100%); transition: transform .25s cubic-bezier(.4,0,.2,1); display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
+  .drawer-head h2 { margin: 0; font-size: 19px; letter-spacing: -.3px; }
+  .drawer-head .sub { color: var(--text-dim); font-size: 12.5px; margin-top: 4px; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 0 22px 40px; }
+  .drawer .close { margin-left: auto; }
+  .sec { padding: 18px 0; border-bottom: 1px solid var(--border-soft); }
+  .sec:last-child { border-bottom: none; }
+  .sec h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-dim); margin: 0 0 12px; display:flex; align-items:center; gap:8px; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 6px 14px; font-size: 13px; }
+  .kv dt { color: var(--text-faint); }
+  .kv dd { margin: 0; color: var(--text); }
+  .enrich-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .enrich-grid .full { grid-column: 1 / -1; }
+  .enrich-grid label { display: block; font-size: 11.5px; color: var(--text-faint); margin-bottom: 4px; }
+  .enrich-grid input, .enrich-grid textarea {
+    width: 100%; padding: 9px 11px; border-radius: 8px; background: var(--bg-card);
+    border: 1px solid var(--border); color: var(--text); outline: none; resize: vertical;
+  }
+  .enrich-grid input:focus, .enrich-grid textarea:focus { border-color: var(--accent); }
+  .estab { padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+  .estab .et-h { display: flex; justify-content: space-between; gap: 8px; }
+  .bodacc-item { padding: 10px 12px; border-left: 2px solid var(--accent); background: var(--bg-card); border-radius: 0 8px 8px 0; margin-bottom: 8px; font-size: 12.5px; }
+  .bodacc-item .bd-date { color: var(--text-faint); font-size: 11.5px; }
+  .saved-flash { color: var(--accent-2); font-size: 12px; opacity: 0; transition: opacity .2s; }
+  .saved-flash.show { opacity: 1; }
+
+  .toolbar-right { display: flex; gap: 8px; align-items: center; }
+  .toggle-filters { display: none; }
+  @media (max-width: 1100px) {
+    aside.filters { position: fixed; left: 0; top: 61px; z-index: 50; background: var(--bg-soft); }
+    .toggle-filters { display: inline-flex; }
+  }
+  @media (max-width: 720px) {
+    .smartbar { display: none; }
+    thead th.opt, tbody td.opt { display: none; }
+  }
+  .muted { color: var(--text-faint); }
+  .link-pill { display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:8px; background:var(--bg-card); border:1px solid var(--border); font-size:12.5px; margin:0 6px 6px 0; }
+
+  /* Presets */
+  .presets { margin-bottom: 18px; }
+  .presets-title { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-faint); font-weight: 700; margin-bottom: 10px; display:flex; align-items:center; gap:8px; }
+  .preset-group { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 9px; }
+  .pg-label { font-size: 12px; font-weight: 700; color: var(--text-dim); min-width: 130px; display:flex; align-items:center; gap:6px; }
+  .pg-label .dot { width:8px; height:8px; border-radius:50%; }
+  .preset { padding: 7px 13px; border-radius: 20px; background: var(--bg-elev); border: 1px solid var(--border); font-size: 12.5px; font-weight: 600; color: var(--text-dim); white-space: nowrap; transition: all .12s; }
+  .preset:hover { border-color: var(--accent); color: var(--text); background: var(--accent-soft); transform: translateY(-1px); }
+  @media (max-width: 720px){ .pg-label { min-width: 100%; margin-bottom: 2px; } }
+
+  /* Chat IA */
+  .chat-drawer {
+    position: fixed; top: 0; left: 0; height: 100vh; width: 440px; max-width: 94vw; z-index: 80;
+    background: var(--bg-soft); border-right: 1px solid var(--border); box-shadow: var(--shadow);
+    transform: translateX(-100%); transition: transform .25s cubic-bezier(.4,0,.2,1); display: flex; flex-direction: column;
+  }
+  .chat-drawer.open { transform: translateX(0); }
+  .chat-head { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .chat-head b { font-size: 15px; }
+  .chat-head .sub { font-size: 11px; color: var(--text-faint); }
+  .chat-thread { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 90%; padding: 11px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant { align-self: flex-start; background: var(--bg-elev); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.assistant b { color: var(--text); }
+  .msg.tool { align-self: flex-start; background: transparent; color: var(--text-faint); font-size: 12px; padding: 2px 6px; font-style: italic; }
+  .msg.error { align-self: flex-start; background: rgba(220,38,38,.08); color: #b91c1c; border: 1px solid rgba(220,38,38,.25); }
+  .chat-empty { text-align: center; color: var(--text-faint); padding: 30px 16px; font-size: 13px; }
+  .chat-empty .ex { display:block; background: var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:9px 12px; margin:8px 0; cursor:pointer; color:var(--text-dim); text-align:left; }
+  .chat-empty .ex:hover { border-color: var(--accent); color: var(--text); }
+  .chat-input { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: flex-end; }
+  .chat-input textarea { flex: 1; resize: none; padding: 10px 12px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text); outline: none; max-height: 120px; }
+  .chat-input textarea:focus { border-color: var(--accent); }
+  .chat-input button { width: 42px; height: 42px; border-radius: 10px; font-size: 18px; padding: 0; }
+  .typing { display:inline-flex; gap:4px; }
+  .typing i { width:6px; height:6px; border-radius:50%; background:var(--text-faint); animation: blink 1.2s infinite; }
+  .typing i:nth-child(2){ animation-delay:.2s; } .typing i:nth-child(3){ animation-delay:.4s; }
+  @keyframes blink { 0%,60%,100%{ opacity:.3; } 30%{ opacity:1; } }
+
+  /* Modal settings */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 90; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 14px; padding: 24px; width: 460px; max-width: 92vw; box-shadow: var(--shadow); }
+  .modal h2 { margin: 0 0 4px; font-size: 18px; }
+  .modal p { color: var(--text-dim); font-size: 13px; margin: 0 0 16px; }
+  .modal label { display: block; font-size: 12.5px; font-weight: 600; margin: 14px 0 6px; }
+  .modal input { width: 100%; padding: 10px 12px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text); outline: none; }
+  .modal input:focus { border-color: var(--accent); }
+  .modal .warn { background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.28); color: #92400e; padding: 10px 12px; border-radius: 8px; font-size: 12px; margin-top: 14px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="topbar-row">
+      <div class="brand">
+        <span class="logo">🔎</span>
+        <span>Prospechercheur<small>Données publiques · data.gouv.fr</small></span>
+      </div>
+      <button class="btn icon toggle-filters" id="toggleFilters" title="Filtres">⚙︎</button>
+      <div class="smartbar">
+        <div class="field">
+          <span class="ico">✨</span>
+          <input id="smartInput" type="text" placeholder="Pose ta question : ex. « boulangeries à Lyon créées en 2025 », « startups tech ESS à Paris », « restaurants moins de 6 mois »…" autocomplete="off" />
+        </div>
+        <button class="btn primary" id="smartGo">Rechercher</button>
+      </div>
+      <div class="toolbar-right">
+        <button class="btn primary sm" id="chatBtn" title="Assistant IA">💬 Chat IA</button>
+        <button class="btn ghost sm" id="settingsBtn" title="Réglages">⚙︎</button>
+        <button class="btn ghost sm" id="exportBtn" title="Exporter vos enrichissements">⬇</button>
+        <button class="btn ghost sm" id="importBtn" title="Importer">⬆</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none" />
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="filters" id="filters">
+      <div class="filter-head">
+        <h2>Filtres avancés</h2>
+        <button class="btn ghost sm" id="resetFilters">Réinitialiser</button>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">Nom / mot-clé</label>
+        <input type="text" id="f_q" placeholder="Nom d'entreprise, sigle…" />
+        <div class="hint">Recherche plein texte sur la dénomination.</div>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">Secteur d'activité</label>
+        <select id="f_section">
+          <option value="">Toutes sections</option>
+        </select>
+        <input type="text" id="f_naf" placeholder="Code NAF précis (ex. 47.91B)" />
+        <div class="hint">Section = grand domaine. NAF = activité précise.</div>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">Localisation</label>
+        <div class="autocomplete">
+          <input type="text" id="f_commune" placeholder="Commune (ex. Paris, Lyon…)" autocomplete="off" />
+          <div class="ac-list" id="communeAc" style="display:none"></div>
+        </div>
+        <div class="row2">
+          <input type="text" id="f_dep" placeholder="Département (75)" />
+          <input type="text" id="f_cp" placeholder="Code postal" />
+        </div>
+        <select id="f_region"><option value="">Toutes régions</option></select>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">Date de création</label>
+        <div class="chips" id="dateChips">
+          <span class="chip" data-months="6">&lt; 6 mois</span>
+          <span class="chip" data-months="12">&lt; 1 an</span>
+          <span class="chip" data-months="24">&lt; 2 ans</span>
+          <span class="chip" data-year="thisyear">Cette année</span>
+        </div>
+        <div class="row2" style="margin-top:8px">
+          <input type="date" id="f_date_min" title="Créée après" />
+          <input type="date" id="f_date_max" title="Créée avant" />
+        </div>
+        <div class="hint">Filtré côté navigateur sur la date de création réelle.</div>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">État & taille</label>
+        <select id="f_etat">
+          <option value="A">Entreprises actives</option>
+          <option value="">Actives + fermées</option>
+          <option value="C">Fermées uniquement</option>
+        </select>
+        <select id="f_cat">
+          <option value="">Toutes catégories</option>
+          <option value="PME">PME</option>
+          <option value="ETI">ETI</option>
+          <option value="GE">Grande entreprise</option>
+        </select>
+        <select id="f_eff">
+          <option value="">Tous effectifs</option>
+          <option value="NN">Non renseigné</option>
+          <option value="00">0 salarié</option>
+          <option value="01">1–2</option>
+          <option value="02">3–5</option>
+          <option value="03">6–9</option>
+          <option value="11">10–19</option>
+          <option value="12">20–49</option>
+          <option value="21">50–99</option>
+          <option value="22">100–199</option>
+          <option value="31">200–249</option>
+          <option value="32">250–499</option>
+          <option value="41">500–999</option>
+          <option value="42">1000–1999</option>
+          <option value="51">2000–4999</option>
+          <option value="52">5000+</option>
+        </select>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">Labels & statuts</label>
+        <label class="check"><input type="checkbox" id="l_ess"> Économie sociale & solidaire</label>
+        <label class="check"><input type="checkbox" id="l_mission"> Société à mission</label>
+        <label class="check"><input type="checkbox" id="l_bio"> Certifié bio</label>
+        <label class="check"><input type="checkbox" id="l_rge"> RGE (rénovation énergétique)</label>
+        <label class="check"><input type="checkbox" id="l_qualiopi"> Qualiopi</label>
+        <label class="check"><input type="checkbox" id="l_formation"> Organisme de formation</label>
+        <label class="check"><input type="checkbox" id="l_ei"> Entrepreneur individuel</label>
+        <label class="check"><input type="checkbox" id="l_asso"> Association</label>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">Finances</label>
+        <div class="row2">
+          <input type="number" id="f_ca_min" placeholder="CA min (€)" />
+          <input type="number" id="f_ca_max" placeholder="CA max (€)" />
+        </div>
+      </div>
+
+      <div class="fgroup">
+        <label class="title">Dirigeant</label>
+        <input type="text" id="f_dir_nom" placeholder="Nom du dirigeant" />
+        <input type="text" id="f_dir_prenom" placeholder="Prénom du dirigeant" />
+      </div>
+
+      <button class="btn primary" id="applyFilters" style="width:100%">Appliquer les filtres</button>
+    </aside>
+
+    <main class="content">
+      <div class="presets" id="presets"></div>
+      <div class="results-head">
+        <div class="count" id="resultCount">Lance une recherche pour commencer.</div>
+        <div class="active-filters" id="activeFilters"></div>
+        <div class="spacer"></div>
+        <select id="sortSelect" class="btn sm" style="background:var(--bg-elev)">
+          <option value="">Tri : pertinence</option>
+          <option value="intent_desc">🔥 Score d'intention</option>
+          <option value="date_desc">Plus récentes d'abord</option>
+          <option value="date_asc">Plus anciennes d'abord</option>
+          <option value="name_asc">Nom A→Z</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort="name">Entreprise <span class="arrow"></span></th>
+              <th class="opt">Activité</th>
+              <th data-sort="date">Création <span class="arrow"></span></th>
+              <th class="opt">Localisation</th>
+              <th data-sort="intent">Intention <span class="arrow"></span></th>
+              <th>État</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="6">
+              <div class="state">
+                <div class="big">🏢</div>
+                <h3>Trouve des entreprises avec des critères avancés</h3>
+                <div>Utilise la barre intelligente en haut, ou les filtres à gauche.<br/>
+                Exemples : <em>« coiffeurs créés cette année à Marseille »</em> · <em>« sociétés de conseil ESS »</em></div>
+              </div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pager" id="pager" style="display:none"></div>
+    </main>
+  </div>
+</div>
+
+<!-- Chat IA drawer -->
+<aside class="chat-drawer" id="chatDrawer">
+  <div class="chat-head">
+    <div style="flex:1">
+      <b>💬 Assistant prospection</b>
+      <div class="sub" id="chatModelLabel">—</div>
+    </div>
+    <button class="btn ghost sm" id="chatSettingsBtn" title="Clé API">⚙︎</button>
+    <button class="btn ghost icon" id="closeChat">✕</button>
+  </div>
+  <div class="chat-thread" id="chatThread"></div>
+  <div class="chat-input">
+    <textarea id="chatBox" rows="2" placeholder="Décris ce que tu cherches en langage naturel…"></textarea>
+    <button class="btn primary" id="chatSend" title="Envoyer">↑</button>
+  </div>
+</aside>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal">
+    <h2>Réglages — Assistant IA</h2>
+    <p>Le chat utilise l'API Claude d'Anthropic pour comprendre tes demandes et qualifier les entreprises.</p>
+    <label>Clé API Anthropic</label>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
+    <label>Modèle</label>
+    <input type="text" id="modelInput" placeholder="claude-sonnet-4-6" />
+    <div class="warn">🔒 Ta clé est stockée <b>uniquement dans ce navigateur</b> (localStorage), jamais dans le code du site ni envoyée ailleurs qu'à l'API d'Anthropic. Ne partage pas cette page avec ta clé saisie. Obtiens une clé sur console.anthropic.com.</div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="settingsCancel">Annuler</button>
+      <button class="btn primary" id="settingsSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail drawer -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div>
+      <h2 id="dName">—</h2>
+      <div class="sub" id="dSub"></div>
+    </div>
+    <button class="btn ghost icon close" id="closeDrawer">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<script>
+/* =========================================================================
+   Prospechercheur — moteur de recherche d'entreprises françaises
+   Sources : recherche-entreprises.api.gouv.fr · BODACC · geo.api.gouv.fr
+   100% navigateur, aucune clé requise. Compatible GitHub Pages.
+   ========================================================================= */
+
+const API = "https://recherche-entreprises.api.gouv.fr/search";
+const GEO = "https://geo.api.gouv.fr";
+const BODACC = "https://bodacc-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/annonces-commerciales/records";
+const STORE_KEY = "prospechercheur_enrich_v1";
+
+const SECTIONS = {
+  A:"Agriculture, sylviculture, pêche", B:"Industries extractives", C:"Industrie manufacturière",
+  D:"Énergie", E:"Eau, déchets, dépollution", F:"Construction",
+  G:"Commerce, réparation auto/moto", H:"Transports & entreposage", I:"Hébergement & restauration",
+  J:"Information & communication", K:"Finance & assurance", L:"Immobilier",
+  M:"Activités scientifiques & techniques", N:"Services administratifs & soutien", O:"Administration publique",
+  P:"Enseignement", Q:"Santé & action sociale", R:"Arts, spectacles, loisirs",
+  S:"Autres services", T:"Services aux ménages", U:"Extra-territorial"
+};
+
+// ---- State ----
+let state = {
+  page: 1, perPage: 25, totalResults: 0, totalPages: 0,
+  results: [], rawResults: [], sort: "",
+  filters: {}, lastQueryString: ""
+};
+let enrichStore = loadEnrich();
+
+// ---- Helpers ----
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const esc = (s) => (s==null?"":String(s)).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtDate(d){ if(!d) return "—"; const p=d.split("-"); return p.length===3? `${p[2]}/${p[1]}/${p[0]}` : d; }
+function monthsAgo(n){ const d=new Date(); d.setMonth(d.getMonth()-n); return d.toISOString().slice(0,10); }
+function fmtMoney(n){ if(n==null||isNaN(n)) return "—"; return new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(n); }
+function loadEnrich(){ try { return JSON.parse(localStorage.getItem(STORE_KEY))||{}; } catch(e){ return {}; } }
+function saveEnrich(){ localStorage.setItem(STORE_KEY, JSON.stringify(enrichStore)); }
+
+const EFFECTIF_LABELS = {NN:"Non renseigné","00":"0 salarié","01":"1–2","02":"3–5","03":"6–9","11":"10–19","12":"20–49","21":"50–99","22":"100–199","31":"200–249","32":"250–499","41":"500–999","42":"1000–1999","51":"2000–4999","52":"5000+"};
+
+// ===================== Smart natural-language parser =====================
+// Mappe des mots-clés FR vers des filtres. Couvre les cas courants.
+const ACTIVITY_HINTS = {
+  "boulangerie":"10.71C","boulanger":"10.71C","patisserie":"10.71D","pâtisserie":"10.71D",
+  "restaurant":"56.10A","restauration":"56.10A","traiteur":"56.21Z","bar":"56.30Z","café":"56.30Z","cafe":"56.30Z",
+  "coiffure":"96.02A","coiffeur":"96.02A","esthetique":"96.02B","esthétique":"96.02B",
+  "informatique":"62.01Z","logiciel":"58.29C","developpement web":"62.01Z","saas":"62.01Z","tech":"62.01Z",
+  "conseil":"70.22Z","consulting":"70.22Z","marketing":"73.11Z","publicité":"73.11Z","communication":"73.11Z",
+  "immobilier":"68.31Z","agence immobiliere":"68.31Z","architecte":"71.11Z",
+  "batiment":"43.","bâtiment":"43.","plomberie":"43.22A","electricien":"43.21A","menuiserie":"43.32A",
+  "transport":"49.41A","logistique":"52.29A","ecommerce":"47.91B","e-commerce":"47.91B","vente en ligne":"47.91B",
+  "garage":"45.20A","mecanique":"45.20A","fleuriste":"47.76Z","pharmacie":"47.73Z","opticien":"47.78A",
+  "avocat":"69.10Z","comptable":"69.20Z","expertise comptable":"69.20Z","notaire":"69.10Z",
+  "salle de sport":"93.13Z","sport":"93.","photographe":"74.20Z","graphiste":"74.10Z","design":"74.10Z",
+  "formation":"85.59A","ecole":"85.","crèche":"88.91A","creche":"88.91A","sante":"86.","santé":"86.","medecin":"86.21Z",
+  "agriculture":"01.","ferme":"01.","vin":"11.02A","brasserie":"11.05Z","cosmetique":"20.42Z","cosmétique":"20.42Z"
+};
+
+async function smartParse(text){
+  const f = blankFilters();
+  let q = text.trim();
+  const lower = " " + q.toLowerCase() + " ";
+
+  // --- dates ---
+  let m;
+  if((m = lower.match(/moins de (\d+)\s*mois/))) { f.date_min = monthsAgo(parseInt(m[1])); }
+  else if((m = lower.match(/moins de (\d+)\s*an/))) { f.date_min = monthsAgo(parseInt(m[1])*12); }
+  else if(/(6 mois|six mois)/.test(lower)) { f.date_min = monthsAgo(6); }
+  if((m = lower.match(/cr[ée]{2}e?s?\s+en\s+(20\d{2})/)) || (m = lower.match(/\b(20\d{2})\b/))) {
+    const y = m[1]; f.date_min = `${y}-01-01`; f.date_max = `${y}-12-31`;
+  }
+  if(/cette ann[ée]e/.test(lower)){ const y=new Date().getFullYear(); f.date_min=`${y}-01-01`; }
+  if(/r[ée]cent|nouvelle|nouveau|jeune/.test(lower) && !f.date_min){ f.date_min = monthsAgo(12); }
+
+  // --- labels ---
+  if(/\bess\b|sociale et solidaire|économie sociale/.test(lower)) f.l_ess = true;
+  if(/société à mission|societe a mission/.test(lower)) f.l_mission = true;
+  if(/\bbio\b/.test(lower)) f.l_bio = true;
+  if(/\brge\b/.test(lower)) f.l_rge = true;
+  if(/qualiopi/.test(lower)) f.l_qualiopi = true;
+  if(/organisme de formation|formation/.test(lower)) f.l_formation = true;
+  if(/association|\basso\b/.test(lower)) f.l_asso = true;
+
+  // --- activity ---
+  for(const [kw, naf] of Object.entries(ACTIVITY_HINTS)){
+    if(typeof kw === "string" && lower.includes(" "+kw)){ f.naf = naf; break; }
+  }
+
+  // --- location: try to resolve a commune name ---
+  // detect "à <Ville>" or "a <Ville>" or "sur <Ville>"
+  let cityMatch = q.match(/\b(?:à|a|sur|dans|en)\s+([A-ZÀ-Ÿ][a-zà-ÿ'’\-]+(?:\s[A-ZÀ-Ÿ][a-zà-ÿ'’\-]+)?)/);
+  if(cityMatch){
+    const city = cityMatch[1].trim();
+    try {
+      const r = await fetch(`${GEO}/communes?nom=${encodeURIComponent(city)}&fields=nom,code,codesPostaux,codeDepartement&boost=population&limit=1`);
+      const arr = await r.json();
+      if(arr && arr[0]){ f.commune_code = arr[0].code; f.commune_label = arr[0].nom; f.dep = arr[0].codeDepartement||""; }
+    } catch(e){ /* ignore */ }
+  }
+
+  // --- residual free text as q (remove matched bits to keep names) ---
+  // keep it simple: if no activity matched, use cleaned text as q
+  if(!f.naf){
+    let cleaned = q.replace(/\b(20\d{2})\b/g,"")
+                   .replace(/moins de \d+\s*(mois|ans?)/gi,"")
+                   .replace(/cette ann[ée]e/gi,"")
+                   .replace(/\b(à|a|sur|dans|en)\s+[A-ZÀ-Ÿ][\wà-ÿ'’\-]+/g,"")
+                   .replace(/\b(ess|bio|rge|qualiopi|association|récentes?|nouvelles?)\b/gi,"")
+                   .trim();
+    if(cleaned.length>1) f.q = cleaned;
+  } else if(cityMatch){
+    // activity matched + city; no q needed
+  }
+  return f;
+}
+
+// ===================== Filters <-> UI =====================
+function blankFilters(){
+  return { q:"", section:"", naf:"", commune_code:"", commune_label:"", dep:"", cp:"", region:"",
+    date_min:"", date_max:"", etat:"A", cat:"", eff:"",
+    l_ess:false,l_mission:false,l_bio:false,l_rge:false,l_qualiopi:false,l_formation:false,l_ei:false,l_asso:false,
+    ca_min:"", ca_max:"", dir_nom:"", dir_prenom:"" };
+}
+
+function readFiltersFromUI(){
+  return {
+    q: $("#f_q").value.trim(),
+    section: $("#f_section").value,
+    naf: $("#f_naf").value.trim(),
+    commune_code: $("#f_commune").dataset.code || "",
+    commune_label: $("#f_commune").value.trim(),
+    dep: $("#f_dep").value.trim(),
+    cp: $("#f_cp").value.trim(),
+    region: $("#f_region").value,
+    date_min: $("#f_date_min").value,
+    date_max: $("#f_date_max").value,
+    etat: $("#f_etat").value,
+    cat: $("#f_cat").value,
+    eff: $("#f_eff").value,
+    l_ess: $("#l_ess").checked, l_mission: $("#l_mission").checked, l_bio: $("#l_bio").checked,
+    l_rge: $("#l_rge").checked, l_qualiopi: $("#l_qualiopi").checked, l_formation: $("#l_formation").checked,
+    l_ei: $("#l_ei").checked, l_asso: $("#l_asso").checked,
+    ca_min: $("#f_ca_min").value, ca_max: $("#f_ca_max").value,
+    dir_nom: $("#f_dir_nom").value.trim(), dir_prenom: $("#f_dir_prenom").value.trim()
+  };
+}
+
+function writeFiltersToUI(f){
+  $("#f_q").value = f.q||"";
+  $("#f_section").value = f.section||"";
+  $("#f_naf").value = f.naf||"";
+  $("#f_commune").value = f.commune_label||"";
+  $("#f_commune").dataset.code = f.commune_code||"";
+  $("#f_dep").value = f.dep||"";
+  $("#f_cp").value = f.cp||"";
+  $("#f_region").value = f.region||"";
+  $("#f_date_min").value = f.date_min||"";
+  $("#f_date_max").value = f.date_max||"";
+  $("#f_etat").value = f.etat!==undefined? f.etat : "A";
+  $("#f_cat").value = f.cat||"";
+  $("#f_eff").value = f.eff||"";
+  ["ess","mission","bio","rge","qualiopi","formation","ei","asso"].forEach(k=> $("#l_"+k).checked = !!f["l_"+k]);
+  $("#f_ca_min").value = f.ca_min||"";
+  $("#f_ca_max").value = f.ca_max||"";
+  $("#f_dir_nom").value = f.dir_nom||"";
+  $("#f_dir_prenom").value = f.dir_prenom||"";
+}
+
+// Build the API query string from filters
+function buildQuery(f, page){
+  const p = new URLSearchParams();
+  if(f.q) p.set("q", f.q);
+  if(f.naf) p.set("activite_principale", f.naf);
+  if(f.section) p.set("section_activite_principale", f.section);
+  if(f.commune_code) p.set("code_commune", f.commune_code);
+  if(f.dep) p.set("departement", f.dep);
+  if(f.cp) p.set("code_postal", f.cp);
+  if(f.region) p.set("region", f.region);
+  if(f.etat) p.set("etat_administratif", f.etat);
+  if(f.cat) p.set("categorie_entreprise", f.cat);
+  if(f.eff) p.set("tranche_effectif_salarie", f.eff);
+  if(f.l_ess) p.set("est_ess","true");
+  if(f.l_mission) p.set("est_societe_mission","true");
+  if(f.l_bio) p.set("est_bio","true");
+  if(f.l_rge) p.set("est_rge","true");
+  if(f.l_qualiopi) p.set("est_qualiopi","true");
+  if(f.l_formation) p.set("est_organisme_formation","true");
+  if(f.l_ei) p.set("est_entrepreneur_individuel","true");
+  if(f.l_asso) p.set("est_association","true");
+  if(f.ca_min) p.set("ca_min", f.ca_min);
+  if(f.ca_max) p.set("ca_max", f.ca_max);
+  if(f.dir_nom) p.set("nom_personne", f.dir_nom);
+  if(f.dir_prenom) p.set("prenoms_personne", f.dir_prenom);
+  p.set("page", page||1);
+  p.set("per_page", state.perPage);
+  // If no real criteria, API requires at least q; fallback:
+  return p;
+}
+
+function hasAnyCriteria(f){
+  return !!(f.q||f.naf||f.section||f.commune_code||f.dep||f.cp||f.region||f.cat||f.eff||
+    f.l_ess||f.l_mission||f.l_bio||f.l_rge||f.l_qualiopi||f.l_formation||f.l_ei||f.l_asso||
+    f.ca_min||f.ca_max||f.dir_nom||f.dir_prenom);
+}
+
+// ===================== Search =====================
+async function runSearch(page=1){
+  const f = state.filters;
+  if(!hasAnyCriteria(f)){
+    renderMessage("🔍","Ajoute au moins un critère","Saisis un mot-clé, une activité, une ville ou un label pour lancer la recherche.");
+    return;
+  }
+  state.page = page;
+  renderLoading();
+  const qs = buildQuery(f, page);
+  state.lastQueryString = qs.toString();
+  try {
+    const res = await fetch(`${API}?${qs.toString()}`);
+    if(!res.ok){ throw new Error("HTTP "+res.status); }
+    const data = await res.json();
+    state.rawResults = data.results||[];
+    state.totalResults = data.total_results||0;
+    state.totalPages = data.total_pages||1;
+    // client-side date filtering
+    applyClientFilters();
+    renderResults();
+  } catch(e){
+    renderMessage("⚠️","Erreur de connexion","Impossible de joindre l'API ("+esc(e.message)+"). Réessaie dans un instant.");
+  }
+}
+
+function applyClientFilters(){
+  const f = state.filters;
+  let rows = state.rawResults.slice();
+  if(f.date_min) rows = rows.filter(r => (r.date_creation||"") >= f.date_min);
+  if(f.date_max) rows = rows.filter(r => (r.date_creation||"") <= f.date_max);
+  // pre-compute intent once per row
+  rows.forEach(r => { r._intent = intentScore(r); });
+  // sort
+  if(state.sort==="intent_desc") rows.sort((a,b)=> b._intent.score - a._intent.score);
+  else if(state.sort==="date_desc") rows.sort((a,b)=> (b.date_creation||"").localeCompare(a.date_creation||""));
+  else if(state.sort==="date_asc") rows.sort((a,b)=> (a.date_creation||"").localeCompare(b.date_creation||""));
+  else if(state.sort==="name_asc") rows.sort((a,b)=> (a.nom_complet||"").localeCompare(b.nom_complet||""));
+  state.results = rows;
+}
+
+// ===================== Intent signals (scoring) =====================
+// Calcule un score d'intention 0-100 + signaux, à partir des données déjà
+// présentes dans la réponse de recherche (zéro appel réseau supplémentaire).
+function intentScore(r){
+  let score = 0; const signals = [];
+  // 1. Récence de création = intent de setup / nouveau besoin
+  if(r.date_creation){
+    if(r.date_creation >= monthsAgo(6)){ score+=30; signals.push({t:"Création très récente (< 6 mois)", w:"hot"}); }
+    else if(r.date_creation >= monthsAgo(12)){ score+=20; signals.push({t:"Créée cette année", w:"warm"}); }
+    else if(r.date_creation >= monthsAgo(24)){ score+=10; signals.push({t:"Moins de 2 ans", w:"warm"}); }
+  }
+  // 2. Croissance du chiffre d'affaires (tendance)
+  const fin = r.finances||{}; const yrs = Object.keys(fin).sort();
+  if(yrs.length>=2){
+    const last = fin[yrs[yrs.length-1]].ca, prev = fin[yrs[yrs.length-2]].ca;
+    if(last!=null && prev!=null && prev>0){
+      const g = (last-prev)/prev;
+      if(g>=0.2){ score+=25; signals.push({t:`CA en forte hausse (+${Math.round(g*100)}%)`, w:"hot"}); }
+      else if(g>0.02){ score+=12; signals.push({t:`CA en croissance (+${Math.round(g*100)}%)`, w:"warm"}); }
+      else if(g<-0.1){ signals.push({t:`CA en baisse (${Math.round(g*100)}%)`, w:"cold"}); }
+    }
+  }
+  // 3. Effectif en structuration (budget + besoin d'outils/recrutement)
+  const eff = r.tranche_effectif_salarie;
+  if(["12","21","22","31","32"].includes(eff)){ score+=15; signals.push({t:"Effectif en structuration (20–500)", w:"warm"}); }
+  else if(eff==="11"){ score+=10; }
+  else if(["41","42","51","52"].includes(eff)){ score+=8; }
+  // 4. Expansion multi-établissements
+  if((r.nombre_etablissements||1) > 1){ score+=10; signals.push({t:`${r.nombre_etablissements} établissements (expansion)`, w:"warm"}); }
+  // 5. Société à mission / labels = posture / appétence
+  const c = r.complements||{};
+  if(c.est_societe_mission){ score+=4; }
+  // 6. Pénalité si fermée
+  if(r.etat_administratif!=="A"){ score = Math.max(0, score-60); signals.push({t:"Entreprise fermée", w:"cold"}); }
+  return { score: Math.min(100, score), signals };
+}
+function intentTier(s){ return s>=55?{label:"🔥 Chaud",cls:"hot"}:s>=30?{label:"🌤️ Tiède",cls:"warm"}:{label:"Froid",cls:"cold"}; }
+
+// Interprète une annonce BODACC comme signal d'intention
+function bodaccSignal(a){
+  const fam = (a.familleavis_lib||a.familleavis||"").toLowerCase();
+  const txt = JSON.stringify(a.modificationsgenerales||a.commentaire||"").toLowerCase();
+  if(/cr[ée]ation|immatriculation/.test(fam)) return {t:"Immatriculation récente", w:"warm", ico:"🆕"};
+  if(/capital/.test(txt)) return {t:"Mouvement de capital (signal de levée / croissance)", w:"hot", ico:"💰"};
+  if(/modification/.test(fam)) return {t:"Modification statutaire (changement en cours)", w:"warm", ico:"✏️"};
+  if(/[ée]tablissement/.test(txt)) return {t:"Nouvel établissement (expansion)", w:"warm", ico:"📍"};
+  if(/d[ée]p[ôo]t.*compt|compte/.test(fam)) return {t:"Dépôt de comptes (entreprise active & transparente)", w:"warm", ico:"📊"};
+  if(/vente|cession|fonds/.test(fam)) return {t:"Vente / cession de fonds", w:"hot", ico:"🤝"};
+  if(/proc[ée]dure|liquidation|redressement|sauvegarde/.test(fam)) return {t:"Procédure collective (signal de difficulté)", w:"cold", ico:"⚠️"};
+  return null;
+}
+
+// ===================== Rendering =====================
+function isRecent(r){
+  if(!r.date_creation) return false;
+  return r.date_creation >= monthsAgo(6);
+}
+function dirigeantPrincipal(r){
+  if(!r.dirigeants||!r.dirigeants.length) return "—";
+  const d = r.dirigeants[0];
+  if(d.type_dirigeant==="personne morale" || d.denomination) return d.denomination||"—";
+  return [d.prenoms, d.nom].filter(Boolean).join(" ") || "—";
+}
+function labelsOf(r){
+  const c = r.complements||{}; const out=[];
+  if(c.est_ess) out.push("ESS");
+  if(c.est_societe_mission) out.push("Mission");
+  if(c.est_bio) out.push("Bio");
+  if(c.est_rge) out.push("RGE");
+  if(c.est_qualiopi) out.push("Qualiopi");
+  if(c.est_organisme_formation) out.push("Formation");
+  if(c.est_association) out.push("Asso");
+  return out;
+}
+
+function renderLoading(){
+  const rows = Array.from({length:8}).map(()=>`<tr class="skeleton-row">
+    <td><div class="sk" style="width:60%"></div><div class="sk" style="width:30%;margin-top:6px"></div></td>
+    <td class="opt"><div class="sk" style="width:80%"></div></td>
+    <td><div class="sk" style="width:70%"></div></td>
+    <td class="opt"><div class="sk" style="width:70%"></div></td>
+    <td class="opt"><div class="sk" style="width:50%"></div></td>
+    <td><div class="sk" style="width:50%"></div></td></tr>`).join("");
+  $("#tbody").innerHTML = rows;
+  $("#resultCount").innerHTML = "Recherche en cours…";
+  $("#pager").style.display = "none";
+}
+
+function renderMessage(icon, title, sub){
+  $("#tbody").innerHTML = `<tr><td colspan="6"><div class="state"><div class="big">${icon}</div><h3>${esc(title)}</h3><div>${sub}</div></div></td></tr>`;
+  $("#pager").style.display = "none";
+}
+
+function renderResults(){
+  const rows = state.results;
+  renderActiveFilters();
+  if(!rows.length){
+    const note = state.totalResults>0 ? "Aucun résultat sur cette page après filtrage par date. Essaie d'élargir la plage de dates ou de changer de page." : "Aucune entreprise ne correspond à ces critères.";
+    renderMessage("🤷","Aucun résultat", note);
+    $("#resultCount").innerHTML = `<b>0</b> résultat`;
+    return;
+  }
+  $("#resultCount").innerHTML = `<b>${state.totalResults.toLocaleString("fr-FR")}</b> entreprise(s) · page ${state.page}/${state.totalPages}` +
+    (state.filters.date_min||state.filters.date_max ? ` · <span class="muted">${rows.length} affichées après filtre date</span>`:"");
+
+  $("#tbody").innerHTML = rows.map((r,i)=>{
+    const labels = labelsOf(r).slice(0,3).map(l=>`<span class="badge label">${l}</span>`).join("");
+    const enriched = enrichStore[r.siren] && Object.values(enrichStore[r.siren]).some(v=>v&&String(v).trim()) ? `<span class="enriched-dot" title="Fiche enrichie"></span>`:"";
+    const naf = r.activite_principale ? `${esc(r.activite_principale)}` : "";
+    const sec = r.siege||{};
+    const loc = [sec.libelle_commune||sec.commune, sec.code_postal].filter(Boolean).join(" · ");
+    const etat = r.etat_administratif==="A"
+      ? (isRecent(r)?`<span class="badge new">Nouvelle</span>`:`<span class="badge active">Active</span>`)
+      : `<span class="badge closed">Fermée</span>`;
+    const intent = r._intent || intentScore(r);
+    const tier = intentTier(intent.score);
+    const barColor = tier.cls==="hot"?"#e11d48":tier.cls==="warm"?"#d97706":"#94a3b8";
+    return `<tr data-idx="${i}">
+      <td><div class="cname">${esc(r.nom_complet||r.nom_raison_sociale||"—")}${enriched}</div>
+          <div class="cmeta"><span class="siren-mono">${esc(formatSiren(r.siren))}</span> · ${dirigeantPrincipal(r)!=="—"?esc(dirigeantPrincipal(r)):"<span class='muted'>dirigeant n.c.</span>"}</div>
+          <div style="margin-top:4px">${labels}</div></td>
+      <td class="opt"><div>${naf}</div><div class="cmeta">${esc(sectionLabelFromNaf(r.section_activite_principale))}</div></td>
+      <td><div>${fmtDate(r.date_creation)}</div></td>
+      <td class="opt">${esc(loc)||"—"}</td>
+      <td><span class="intent-pill ${tier.cls}">${tier.label} · ${intent.score}</span>
+          <div class="score-bar"><i style="width:${intent.score}%;background:${barColor}"></i></div></td>
+      <td>${etat}</td>
+    </tr>`;
+  }).join("");
+
+  $$("#tbody tr[data-idx]").forEach(tr=>{
+    tr.addEventListener("click", ()=> openDetail(state.results[parseInt(tr.dataset.idx)]));
+  });
+  renderPager();
+}
+
+function renderPager(){
+  const pg = $("#pager"); pg.style.display="flex";
+  pg.innerHTML = `
+    <button id="prevPage" ${state.page<=1?"disabled":""}>← Précédent</button>
+    <span>Page ${state.page} / ${state.totalPages}</span>
+    <button id="nextPage" ${state.page>=state.totalPages?"disabled":""}>Suivant →</button>`;
+  $("#prevPage").onclick = ()=>{ if(state.page>1) runSearch(state.page-1); window.scrollTo({top:0,behavior:"smooth"}); };
+  $("#nextPage").onclick = ()=>{ if(state.page<state.totalPages) runSearch(state.page+1); window.scrollTo({top:0,behavior:"smooth"}); };
+}
+
+function renderActiveFilters(){
+  const f = state.filters; const tags=[];
+  const add=(label,val,key)=> tags.push(`<span class="tag"><b>${label}</b> ${esc(val)} <span class="x" data-clear="${key}">✕</span></span>`);
+  if(f.q) add("texte",f.q,"q");
+  if(f.naf) add("NAF",f.naf,"naf");
+  if(f.section) add("secteur",SECTIONS[f.section]||f.section,"section");
+  if(f.commune_label) add("ville",f.commune_label,"commune");
+  if(f.dep) add("dépt",f.dep,"dep");
+  if(f.cp) add("CP",f.cp,"cp");
+  if(f.region) { const rn = $("#f_region").options[$("#f_region").selectedIndex]; add("région", rn?rn.text:f.region,"region"); }
+  if(f.date_min) add("après",fmtDate(f.date_min),"date_min");
+  if(f.date_max) add("avant",fmtDate(f.date_max),"date_max");
+  if(f.cat) add("catégorie",f.cat,"cat");
+  if(f.eff) add("effectif",EFFECTIF_LABELS[f.eff],"eff");
+  ["ess","mission","bio","rge","qualiopi","formation","ei","asso"].forEach(k=>{ if(f["l_"+k]) add("label",k.toUpperCase(),"l_"+k); });
+  if(f.ca_min) add("CA≥",fmtMoney(+f.ca_min),"ca_min");
+  if(f.ca_max) add("CA≤",fmtMoney(+f.ca_max),"ca_max");
+  if(f.dir_nom) add("dirigeant",f.dir_nom,"dir_nom");
+  $("#activeFilters").innerHTML = tags.join("");
+  $$("#activeFilters .x").forEach(x=> x.addEventListener("click",()=> clearOneFilter(x.dataset.clear)));
+}
+
+function clearOneFilter(key){
+  const f = state.filters;
+  if(key==="commune"){ f.commune_code=""; f.commune_label=""; }
+  else if(key.startsWith("l_")) f[key]=false;
+  else f[key]="";
+  writeFiltersToUI(f);
+  runSearch(1);
+}
+
+function formatSiren(s){ return s? s.replace(/(\d{3})(\d{3})(\d{3})/,"$1 $2 $3"):"—"; }
+function sectionLabelFromNaf(sec){ return sec? (SECTIONS[sec]||"") : ""; }
+
+// ===================== Detail drawer =====================
+async function openDetail(r){
+  const e = enrichStore[r.siren]||{};
+  $("#dName").textContent = r.nom_complet||r.nom_raison_sociale||"—";
+  $("#dSub").innerHTML = `<span class="siren-mono">SIREN ${formatSiren(r.siren)}</span> · ${esc(r.activite_principale||"")} ${r.section_activite_principale?("· "+esc(sectionLabelFromNaf(r.section_activite_principale))):""}`;
+  const sec = r.siege||{};
+  const fin = r.finances||{};
+  const finYears = Object.keys(fin).sort().reverse();
+  const labels = labelsOf(r);
+
+  const intent = r._intent || intentScore(r);
+  const itier = intentTier(intent.score);
+  const ibar = itier.cls==="hot"?"#e11d48":itier.cls==="warm"?"#d97706":"#94a3b8";
+
+  $("#drawerBody").innerHTML = `
+    <div class="sec">
+      <h3>🔥 Score d'intention <span class="intent-pill ${itier.cls}" style="margin-left:auto">${itier.label} · ${intent.score}/100</span></h3>
+      <div class="score-bar" style="width:100%;height:8px"><i style="width:${intent.score}%;background:${ibar}"></i></div>
+      <div id="signalsList" style="margin-top:12px">
+        ${intent.signals.length ? intent.signals.map(s=>`<div class="signal-row"><span class="sdot ${s.w}"></span><div>${esc(s.t)}</div></div>`).join("")
+          : '<div class="muted">Aucun signal fort détecté à partir des données structurées.</div>'}
+        <div class="signal-row" id="bodaccSignals" style="display:none"></div>
+      </div>
+      <div class="hint" style="margin-top:8px">Score calculé sur : récence, croissance du CA, effectif, expansion, événements légaux.</div>
+    </div>
+
+    <div class="sec">
+      <h3>🏢 Identité</h3>
+      <dl class="kv">
+        <dt>Dénomination</dt><dd>${esc(r.nom_complet||r.nom_raison_sociale||"—")}</dd>
+        ${r.sigle?`<dt>Sigle</dt><dd>${esc(r.sigle)}</dd>`:""}
+        <dt>SIREN</dt><dd class="siren-mono">${formatSiren(r.siren)}</dd>
+        <dt>SIRET siège</dt><dd class="siren-mono">${esc(sec.siret||"—")}</dd>
+        <dt>Nature juridique</dt><dd>${esc(r.nature_juridique||"—")}</dd>
+        <dt>Catégorie</dt><dd>${esc(r.categorie_entreprise||"—")}</dd>
+        <dt>Date de création</dt><dd>${fmtDate(r.date_creation)} ${isRecent(r)?'<span class="badge new">&lt; 6 mois</span>':""}</dd>
+        <dt>État</dt><dd>${r.etat_administratif==="A"?'<span class="badge active">Active</span>':'<span class="badge closed">Fermée</span>'}</dd>
+        <dt>Effectif</dt><dd>${EFFECTIF_LABELS[r.tranche_effectif_salarie]||"Non renseigné"} ${r.annee_tranche_effectif_salarie?`(${r.annee_tranche_effectif_salarie})`:""}</dd>
+        <dt>Établissements</dt><dd>${r.nombre_etablissements||1} (${r.nombre_etablissements_ouverts||"?"} ouvert·s)</dd>
+        ${labels.length?`<dt>Labels</dt><dd>${labels.map(l=>`<span class="badge label">${l}</span>`).join("")}</dd>`:""}
+      </dl>
+    </div>
+
+    <div class="sec">
+      <h3>📍 Siège social</h3>
+      <dl class="kv">
+        <dt>Adresse</dt><dd>${esc(sec.adresse||[sec.numero_voie,sec.type_voie,sec.libelle_voie].filter(Boolean).join(" ")||"—")}</dd>
+        <dt>Commune</dt><dd>${esc(sec.libelle_commune||sec.commune||"—")} ${esc(sec.code_postal||"")}</dd>
+        <dt>Département</dt><dd>${esc(sec.departement||"—")}</dd>
+        <dt>Activité (NAF)</dt><dd>${esc(sec.activite_principale||r.activite_principale||"—")}</dd>
+      </dl>
+      ${sec.latitude?`<div style="margin-top:10px"><a class="link-pill" target="_blank" href="https://www.google.com/maps?q=${sec.latitude},${sec.longitude}">🗺️ Voir sur la carte</a></div>`:""}
+    </div>
+
+    <div class="sec">
+      <h3>👤 Dirigeants</h3>
+      ${(r.dirigeants&&r.dirigeants.length)? r.dirigeants.map(d=>{
+        const nom = d.denomination ? d.denomination : [d.prenoms,d.nom].filter(Boolean).join(" ");
+        return `<div class="estab"><div class="et-h"><b>${esc(nom||"—")}</b><span class="muted">${esc(d.qualite||"")}</span></div>
+          ${d.annee_de_naissance?`<div class="cmeta">Né·e en ${esc(d.annee_de_naissance)}</div>`:""}
+          ${d.nationalite?`<div class="cmeta">${esc(d.nationalite)}</div>`:""}</div>`;
+      }).join("") : '<div class="muted">Aucun dirigeant renseigné.</div>'}
+    </div>
+
+    ${finYears.length?`<div class="sec"><h3>💶 Finances</h3>
+      <dl class="kv">${finYears.slice(0,3).map(y=>`<dt>${y}</dt><dd>CA : ${fmtMoney(fin[y].ca)} · Résultat net : ${fmtMoney(fin[y].resultat_net)}</dd>`).join("")}</dl></div>`:""}
+
+    <div class="sec">
+      <h3>📰 Annonces légales (BODACC) <span class="muted" id="bodaccStatus">chargement…</span></h3>
+      <div id="bodaccList"><div class="muted">Recherche des annonces…</div></div>
+    </div>
+
+    <div class="sec">
+      <h3>✏️ Enrichissement <span class="saved-flash" id="savedFlash">✓ enregistré</span></h3>
+      <div class="hint">Tes ajouts sont sauvegardés dans ce navigateur et exportables.</div>
+      <div class="enrich-grid">
+        <div><label>Site web</label><input id="e_site" value="${esc(e.site||"")}" placeholder="https://…"></div>
+        <div><label>LinkedIn</label><input id="e_linkedin" value="${esc(e.linkedin||"")}" placeholder="linkedin.com/company/…"></div>
+        <div><label>Téléphone</label><input id="e_tel" value="${esc(e.tel||"")}" placeholder="+33…"></div>
+        <div><label>Email</label><input id="e_email" value="${esc(e.email||"")}" placeholder="contact@…"></div>
+        <div class="full"><label>Tags (séparés par des virgules)</label><input id="e_tags" value="${esc(e.tags||"")}" placeholder="prospect, à rappeler, chaud…"></div>
+        <div class="full"><label>Notes</label><textarea id="e_notes" rows="4" placeholder="Contexte, historique d'échanges, prochaine action…">${esc(e.notes||"")}</textarea></div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <a class="link-pill" target="_blank" href="https://annuaire-entreprises.data.gouv.fr/entreprise/${esc(r.siren)}">🔗 Fiche officielle Annuaire</a>
+        <a class="link-pill" target="_blank" href="https://www.google.com/search?q=${encodeURIComponent((r.nom_complet||'')+' linkedin')}">🔎 Chercher sur le web</a>
+      </div>
+    </div>
+  `;
+
+  // bind enrichment autosave
+  ["site","linkedin","tel","email","tags","notes"].forEach(k=>{
+    const el = $("#e_"+k);
+    el.addEventListener("input", ()=>{
+      enrichStore[r.siren] = enrichStore[r.siren]||{};
+      enrichStore[r.siren][k] = el.value;
+      enrichStore[r.siren]._name = r.nom_complet||r.nom_raison_sociale||"";
+      saveEnrich();
+      const fl = $("#savedFlash"); fl.classList.add("show"); clearTimeout(window._flashT);
+      window._flashT = setTimeout(()=>fl.classList.remove("show"),1200);
+    });
+  });
+
+  openDrawer();
+  loadBodacc(r.siren);
+}
+
+async function loadBodacc(siren){
+  const list = $("#bodaccList"); const status = $("#bodaccStatus");
+  try {
+    const url = `${BODACC}?where=registre%20LIKE%20%22${siren}%22&order_by=dateparution%20DESC&limit=12`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const data = await res.json();
+    const recs = data.results||[];
+    if(status) status.textContent = `(${data.total_count||recs.length})`;
+    // Feed BODACC-derived intent signals into the signals list
+    const sigBox = document.getElementById("bodaccSignals");
+    if(sigBox){
+      const seen = new Set(); const sigs = [];
+      recs.forEach(a=>{ const s = bodaccSignal(a); if(s && !seen.has(s.t)){ seen.add(s.t); sigs.push(s); } });
+      if(sigs.length){
+        sigBox.style.display = "block"; sigBox.style.flexDirection = "column"; sigBox.style.borderBottom = "none"; sigBox.style.padding = "0";
+        sigBox.innerHTML = sigs.map(s=>`<div class="signal-row"><span class="sdot ${s.w}"></span><div>${s.ico||""} ${esc(s.t)} <span class="muted">· via BODACC</span></div></div>`).join("");
+      }
+    }
+    if(!recs.length){ list.innerHTML = '<div class="muted">Aucune annonce trouvée pour ce SIREN.</div>'; return; }
+    list.innerHTML = recs.map(a=>{
+      const type = a.familleavis_lib || a.familleavis || "Annonce";
+      const date = a.dateparution || "";
+      let detail = "";
+      try { if(a.listepersonnes){ const lp = typeof a.listepersonnes==="string"?JSON.parse(a.listepersonnes):a.listepersonnes; } } catch(e){}
+      const txt = a.commentaire || (a.modificationsgenerales? (typeof a.modificationsgenerales==="string"?a.modificationsgenerales:JSON.stringify(a.modificationsgenerales)) : "");
+      return `<div class="bodacc-item"><div class="bd-date">${esc(date)} · ${esc(a.publicationavis_facette||a.tribunal||"")}</div>
+        <b>${esc(type)}</b>${txt?`<div class="cmeta" style="margin-top:4px">${esc(String(txt).slice(0,220))}</div>`:""}</div>`;
+    }).join("");
+  } catch(e){
+    if(status) status.textContent = "";
+    list.innerHTML = `<div class="muted">Annonces indisponibles (${esc(e.message)}). <a target="_blank" href="https://www.bodacc.fr/pages/annonces-commerciales/?q=${siren}">Voir sur BODACC ↗</a></div>`;
+  }
+}
+
+function openDrawer(){ $("#drawer").classList.add("open"); $("#overlay").classList.add("open"); document.body.style.overflow="hidden"; }
+function closeDrawer(){ $("#drawer").classList.remove("open"); $("#overlay").classList.remove("open"); document.body.style.overflow=""; }
+
+// ===================== Geo dropdowns & autocomplete =====================
+async function initGeo(){
+  // sections
+  const ss = $("#f_section");
+  Object.entries(SECTIONS).forEach(([k,v])=> ss.insertAdjacentHTML("beforeend", `<option value="${k}">${k} — ${v}</option>`));
+  // regions
+  try {
+    const r = await fetch(`${GEO}/regions`);
+    const arr = await r.json();
+    arr.sort((a,b)=>a.nom.localeCompare(b.nom)).forEach(reg=>{
+      $("#f_region").insertAdjacentHTML("beforeend", `<option value="${reg.code}">${esc(reg.nom)}</option>`);
+    });
+  } catch(e){ /* offline: leave region empty */ }
+}
+
+let acTimer=null, acIndex=-1;
+function setupCommuneAutocomplete(){
+  const input = $("#f_commune"); const box = $("#communeAc");
+  input.addEventListener("input", ()=>{
+    input.dataset.code="";
+    const v = input.value.trim();
+    clearTimeout(acTimer);
+    if(v.length<2){ box.style.display="none"; return; }
+    acTimer = setTimeout(async ()=>{
+      try {
+        const r = await fetch(`${GEO}/communes?nom=${encodeURIComponent(v)}&fields=nom,code,codeDepartement,codesPostaux&boost=population&limit=8`);
+        const arr = await r.json();
+        if(!arr.length){ box.style.display="none"; return; }
+        box.innerHTML = arr.map((c,i)=>`<div data-code="${c.code}" data-nom="${esc(c.nom)}" data-dep="${c.codeDepartement}">${esc(c.nom)} <span class="muted">(${c.codeDepartement})</span></div>`).join("");
+        box.style.display="block"; acIndex=-1;
+        $$("#communeAc div").forEach(d=> d.addEventListener("click",()=>{
+          input.value = d.dataset.nom; input.dataset.code = d.dataset.code;
+          $("#f_dep").value = d.dataset.dep; box.style.display="none";
+        }));
+      } catch(e){ box.style.display="none"; }
+    }, 250);
+  });
+  input.addEventListener("keydown",(e)=>{
+    const items = $$("#communeAc div"); if(!items.length) return;
+    if(e.key==="ArrowDown"){ acIndex=Math.min(acIndex+1,items.length-1); e.preventDefault(); }
+    else if(e.key==="ArrowUp"){ acIndex=Math.max(acIndex-1,0); e.preventDefault(); }
+    else if(e.key==="Enter" && acIndex>=0){ items[acIndex].click(); e.preventDefault(); return; }
+    items.forEach((it,i)=> it.classList.toggle("active",i===acIndex));
+  });
+  document.addEventListener("click",(e)=>{ if(!input.contains(e.target) && !box.contains(e.target)) box.style.display="none"; });
+}
+
+// ===================== Export / Import =====================
+function exportEnrich(){
+  const blob = new Blob([JSON.stringify(enrichStore,null,2)],{type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `prospechercheur-enrichissements-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+function importEnrich(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try { const data = JSON.parse(reader.result); enrichStore = {...enrichStore, ...data}; saveEnrich();
+      alert("Import réussi : "+Object.keys(data).length+" fiche(s) fusionnée(s)."); if(state.results.length) renderResults();
+    } catch(e){ alert("Fichier invalide."); }
+  };
+  reader.readAsText(file);
+}
+
+// ===================== Chat IA (API Claude) =====================
+const KEY_STORE = "prospechercheur_claude_key";
+const MODEL_STORE = "prospechercheur_claude_model";
+const DEFAULT_MODEL = "claude-sonnet-4-6";
+function getKey(){ try { return localStorage.getItem(KEY_STORE)||""; } catch(e){ return ""; } }
+function getModel(){ try { return localStorage.getItem(MODEL_STORE)||DEFAULT_MODEL; } catch(e){ return DEFAULT_MODEL; } }
+
+const CHAT_SYSTEM = `Tu es l'assistant de prospection de Pascal EK Loui, Product Builder IA-First freelance basé à Paris.
+Ton rôle : aider à trouver et QUALIFIER des entreprises françaises pour la prospection commerciale (jamais d'envoi de campagne — uniquement recherche, scoring, qualification).
+
+Tu disposes de l'outil "rechercher_entreprises" qui interroge les données publiques (data.gouv.fr) et renvoie pour chaque entreprise un score d'intention (0-100) et des signaux (création récente, croissance du CA, expansion, événements légaux).
+
+Contexte des 3 projets de Pascal (utilise-le pour qualifier le fit) :
+- PRODUCT BUILDER IA (son activité freelance) : cibles = SaaS B2B scale-up 20-200 pers, startups AI-native, fintech/insurtech/legaltech, grands comptes en transformation digitale, organismes de formation (Qualiopi/OPCO). Souvent section NAF J (information & communication / tech), parfois M (conseil) ou K (finance).
+- TONDROIT.FR (info juridique grand public) : cibles = cabinets d'avocats (NAF 69.10Z), mutuelles & assurances (section K), institutionnels (barreaux, CDAD).
+- SCENIQ : cible à préciser par l'utilisateur (demande-lui si pertinent).
+
+Méthode : à partir de la demande, choisis les meilleurs critères et appelle l'outil. Puis, en français, concis et orienté action : présente les 3-5 meilleurs prospects, explique POURQUOI ils sont pertinents (signaux d'intention, fit avec le projet), et indique lesquels prioriser. Termine par une suggestion de critère à affiner si utile. Pas de blabla, droit au but.`;
+
+const SEARCH_TOOL = {
+  name: "rechercher_entreprises",
+  description: "Recherche des entreprises françaises selon des critères structurés. Renvoie une liste avec leur score d'intention et leurs signaux. Au moins un critère est requis.",
+  input_schema: {
+    type: "object",
+    properties: {
+      q: { type:"string", description:"Mots-clés ou nom d'entreprise (recherche plein texte)" },
+      activite_principale: { type:"string", description:"Code NAF/APE précis, ex '69.10Z' (avocats), '47.91B' (e-commerce), '56.10A' (restaurant)" },
+      section_activite_principale: { type:"string", description:"Section NAF (1 lettre). G=commerce, I=restauration, J=info/communication/tech/SaaS, K=finance/assurance, M=conseil/sciences/technique, P=enseignement/formation, Q=santé" },
+      commune: { type:"string", description:"Nom de ville, ex 'Lyon'. Sera résolu automatiquement." },
+      departement: { type:"string", description:"Code département, ex '75', '69'" },
+      code_postal: { type:"string" },
+      region: { type:"string", description:"Code région INSEE, ex '11' (Île-de-France)" },
+      etat_administratif: { type:"string", enum:["A","C",""], description:"A=active (défaut), C=fermée, ''=toutes" },
+      categorie_entreprise: { type:"string", enum:["PME","ETI","GE"] },
+      tranche_effectif_salarie: { type:"string", description:"Code INSEE: '12'=20-49, '21'=50-99, '22'=100-199, '32'=250-499" },
+      est_ess: { type:"boolean", description:"Économie sociale et solidaire" },
+      est_societe_mission: { type:"boolean" },
+      est_organisme_formation: { type:"boolean" },
+      est_rge: { type:"boolean" },
+      est_bio: { type:"boolean" },
+      ca_min: { type:"number", description:"Chiffre d'affaires minimum en euros" },
+      ca_max: { type:"number" },
+      date_creation_min: { type:"string", description:"Créées après cette date (YYYY-MM-DD)" },
+      date_creation_max: { type:"string", description:"Créées avant cette date (YYYY-MM-DD)" },
+      nom_personne: { type:"string", description:"Nom d'un dirigeant" }
+    }
+  }
+};
+
+let chatMessages = [];
+let chatBusy = false;
+
+function fmtChatText(t){
+  return esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^- /gm,"• ");
+}
+function addChatMsg(role, text){
+  const thread = $("#chatThread");
+  const empty = thread.querySelector(".chat-empty"); if(empty) empty.remove();
+  const div = document.createElement("div");
+  div.className = "msg "+role;
+  div.innerHTML = role==="assistant" ? fmtChatText(text) : esc(text);
+  thread.appendChild(div); thread.scrollTop = thread.scrollHeight;
+  return div;
+}
+let typingEl = null;
+function showTyping(){ const t=$("#chatThread"); typingEl=document.createElement("div"); typingEl.className="msg assistant"; typingEl.innerHTML='<span class="typing"><i></i><i></i><i></i></span>'; t.appendChild(typingEl); t.scrollTop=t.scrollHeight; }
+function hideTyping(){ if(typingEl){ typingEl.remove(); typingEl=null; } }
+
+async function callClaude(messages){
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": getKey(),
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({ model: getModel(), max_tokens: 1500, system: CHAT_SYSTEM, tools: [SEARCH_TOOL], messages })
+  });
+  if(!res.ok){
+    let detail = ""; try { detail = (await res.json()).error?.message || ""; } catch(e){}
+    if(res.status===401) throw new Error("Clé API invalide ou manquante. Vérifie tes réglages (⚙︎).");
+    throw new Error(`Erreur API ${res.status}. ${detail}`);
+  }
+  return await res.json();
+}
+
+async function executeSearchTool(input){
+  const f = blankFilters();
+  f.q = input.q||""; f.naf = input.activite_principale||""; f.section = input.section_activite_principale||"";
+  f.dep = input.departement||""; f.cp = input.code_postal||""; f.region = input.region||"";
+  f.etat = (input.etat_administratif!==undefined && input.etat_administratif!==null) ? input.etat_administratif : "A";
+  f.cat = input.categorie_entreprise||""; f.eff = input.tranche_effectif_salarie||"";
+  f.l_ess = !!input.est_ess; f.l_mission = !!input.est_societe_mission; f.l_formation = !!input.est_organisme_formation;
+  f.l_rge = !!input.est_rge; f.l_bio = !!input.est_bio;
+  f.ca_min = input.ca_min!=null?String(input.ca_min):""; f.ca_max = input.ca_max!=null?String(input.ca_max):"";
+  f.date_min = input.date_creation_min||""; f.date_max = input.date_creation_max||"";
+  f.dir_nom = input.nom_personne||"";
+  // resolve commune name -> code
+  if(input.commune && !f.commune_code){
+    try {
+      const r = await fetch(`${GEO}/communes?nom=${encodeURIComponent(input.commune)}&fields=nom,code,codeDepartement&boost=population&limit=1`);
+      const arr = await r.json();
+      if(arr && arr[0]){ f.commune_code = arr[0].code; f.commune_label = arr[0].nom; if(!f.dep) f.dep = arr[0].codeDepartement||""; }
+    } catch(e){}
+  }
+  state.filters = f; writeFiltersToUI(f);
+  await runSearch(1);
+  const top = state.results.slice(0,12).map(r=>{
+    const it = r._intent || intentScore(r);
+    const sec = r.siege||{};
+    return { nom: r.nom_complet||r.nom_raison_sociale, siren: r.siren,
+      activite: r.activite_principale, secteur: SECTIONS[r.section_activite_principale]||"",
+      date_creation: r.date_creation, ville: sec.libelle_commune||sec.commune||"",
+      effectif: EFFECTIF_LABELS[r.tranche_effectif_salarie]||"n.c.",
+      dirigeant: dirigeantPrincipal(r), score_intention: it.score, signaux: it.signals.map(s=>s.t) };
+  });
+  return { total_resultats: state.totalResults, nb_affiches: state.results.length,
+    note: state.totalResults>state.results.length ? "Filtrage par date appliqué côté client sur la page courante." : "",
+    entreprises: top };
+}
+
+async function runAgent(){
+  let loops = 0;
+  while(loops++ < 5){
+    const resp = await callClaude(chatMessages);
+    hideTyping();
+    const textParts = (resp.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("\n").trim();
+    if(textParts) addChatMsg("assistant", textParts);
+    chatMessages.push({ role:"assistant", content: resp.content });
+    if(resp.stop_reason==="tool_use"){
+      const toolUses = (resp.content||[]).filter(c=>c.type==="tool_use");
+      const toolResults = [];
+      for(const tu of toolUses){
+        const status = addChatMsg("tool","🔎 Recherche dans les données publiques…");
+        let out;
+        try { out = await executeSearchTool(tu.input||{}); }
+        catch(e){ out = { erreur: String(e.message||e) }; }
+        status.remove();
+        toolResults.push({ type:"tool_result", tool_use_id: tu.id, content: JSON.stringify(out) });
+      }
+      chatMessages.push({ role:"user", content: toolResults });
+      showTyping();
+      continue;
+    }
+    break;
+  }
+}
+
+async function sendChat(){
+  if(chatBusy) return;
+  const box = $("#chatBox"); const text = box.value.trim();
+  if(!text) return;
+  if(!getKey()){ addChatMsg("error","Configure d'abord ta clé API Claude pour utiliser le chat (bouton ⚙︎)."); openSettings(); return; }
+  box.value = ""; box.style.height="auto";
+  addChatMsg("user", text);
+  chatMessages.push({ role:"user", content: text });
+  chatBusy = true; showTyping();
+  try { await runAgent(); }
+  catch(e){ hideTyping(); addChatMsg("error", String(e.message||e)); }
+  finally { chatBusy = false; hideTyping(); }
+}
+
+const CHAT_EXAMPLES = [
+  "Trouve des startups SaaS en forte croissance à Paris pour mon offre Product Builder",
+  "Cabinets d'avocats récents en Île-de-France à contacter pour Tondroit",
+  "Organismes de formation de 20 à 50 personnes, classés par score d'intention",
+  "Fintech créées il y a moins d'un an avec un CA en hausse"
+];
+function renderChatEmpty(){
+  const thread = $("#chatThread");
+  thread.innerHTML = `<div class="chat-empty">
+    <div style="font-size:30px;margin-bottom:8px">💬</div>
+    <div>Décris ce que tu cherches, l'IA traduit en critères, lance la recherche et qualifie les prospects.</div>
+    ${CHAT_EXAMPLES.map(e=>`<span class="ex">${esc(e)}</span>`).join("")}
+  </div>`;
+  $$("#chatThread .ex").forEach(ex=> ex.addEventListener("click",()=>{ $("#chatBox").value = ex.textContent; $("#chatBox").focus(); }));
+}
+function openChat(){ $("#chatDrawer").classList.add("open"); $("#chatModelLabel").textContent = "Modèle : "+getModel()+(getKey()?"":" · clé non configurée"); if(!chatMessages.length) renderChatEmpty(); $("#chatBox").focus(); }
+function closeChat(){ $("#chatDrawer").classList.remove("open"); }
+
+function openSettings(){ $("#apiKeyInput").value = getKey(); $("#modelInput").value = getModel(); $("#settingsOverlay").classList.add("open"); }
+function closeSettings(){ $("#settingsOverlay").classList.remove("open"); }
+function saveSettings(){
+  try {
+    localStorage.setItem(KEY_STORE, $("#apiKeyInput").value.trim());
+    localStorage.setItem(MODEL_STORE, $("#modelInput").value.trim()||DEFAULT_MODEL);
+  } catch(e){}
+  $("#chatModelLabel").textContent = "Modèle : "+getModel()+(getKey()?"":" · clé non configurée");
+  closeSettings();
+}
+
+// ===================== Présets de prospection =====================
+// Cibles dérivées des projets : Product Builder IA, Tondroit, Sceniq.
+function getPresets(){
+  return [
+    { group:"Product Builder IA", color:"#5b8cff", presets:[
+      { label:"💻 SaaS / Tech B2B (PME)", f:{ section:"J", cat:"PME", etat:"A" } },
+      { label:"🚀 Startups tech < 1 an", f:{ section:"J", etat:"A", date_min: monthsAgo(12) } },
+      { label:"💳 Fintech / Assurance", f:{ section:"K", cat:"PME", etat:"A" } },
+      { label:"⚖️ Legaltech", f:{ q:"legaltech", section:"J", etat:"A" } },
+      { label:"🎓 Organismes de formation", f:{ l_formation:true, etat:"A" } },
+      { label:"🏢 Conseil / agences (PME)", f:{ naf:"70.22Z", cat:"PME", etat:"A" } },
+    ]},
+    { group:"Tondroit", color:"#1a6b4a", presets:[
+      { label:"⚖️ Cabinets d'avocats", f:{ naf:"69.10Z", etat:"A" } },
+      { label:"⚖️ Avocats à Paris", f:{ naf:"69.10Z", dep:"75", etat:"A" } },
+      { label:"🛡️ Mutuelles / Assurances", f:{ section:"K", etat:"A" } },
+      { label:"🏛️ Cabinets récents < 1 an", f:{ naf:"69.10Z", etat:"A", date_min: monthsAgo(12) } },
+    ]},
+    { group:"Sceniq", color:"#a855f7", presets:[
+      { label:"⚙️ À configurer — dis-moi la cible", f:{}, todo:true },
+    ]},
+  ];
+}
+
+function renderPresets(){
+  const wrap = $("#presets");
+  const groups = getPresets();
+  wrap.innerHTML = `<div class="presets-title">⚡ Présets de prospection</div>` +
+    groups.map(g=>`
+      <div class="preset-group">
+        <span class="pg-label"><span class="dot" style="background:${g.color}"></span>${esc(g.group)}</span>
+        ${g.presets.map((p,i)=>`<button class="preset" data-g="${esc(g.group)}" data-i="${i}" ${p.todo?'title="Précise-moi la cible de Sceniq et je créerai ses présets"':''}>${p.label}</button>`).join("")}
+      </div>`).join("");
+  $$("#presets .preset").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const g = groups.find(x=>x.group===btn.dataset.g);
+      const p = g.presets[parseInt(btn.dataset.i)];
+      if(p.todo){ $("#smartInput").focus(); return; }
+      applyPreset(p.f);
+    });
+  });
+}
+
+function applyPreset(f){
+  const full = { ...blankFilters(), ...f };
+  state.filters = full;
+  writeFiltersToUI(full);
+  // reflect date chips
+  $$("#dateChips .chip").forEach(x=>x.classList.remove("on"));
+  runSearch(1);
+  window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+// ===================== Wire up =====================
+function init(){
+  initGeo();
+  setupCommuneAutocomplete();
+  renderPresets();
+
+  // smart search
+  async function doSmart(){
+    const txt = $("#smartInput").value.trim();
+    if(!txt) return;
+    const f = await smartParse(txt);
+    state.filters = f; writeFiltersToUI(f);
+    runSearch(1);
+  }
+  $("#smartGo").addEventListener("click", doSmart);
+  $("#smartInput").addEventListener("keydown", e=>{ if(e.key==="Enter") doSmart(); });
+
+  // advanced filters apply
+  $("#applyFilters").addEventListener("click", ()=>{
+    state.filters = readFiltersFromUI(); runSearch(1);
+    if(window.innerWidth<=1100) $("#filters").classList.add("collapsed");
+  });
+  // allow Enter inside filter inputs
+  $$("#filters input").forEach(inp=> inp.addEventListener("keydown",e=>{ if(e.key==="Enter" && !$("#communeAc").contains(document.activeElement)){ state.filters=readFiltersFromUI(); runSearch(1);} }));
+
+  // date chips
+  $$("#dateChips .chip").forEach(c=> c.addEventListener("click",()=>{
+    $$("#dateChips .chip").forEach(x=>x.classList.remove("on"));
+    c.classList.add("on");
+    if(c.dataset.months){ $("#f_date_min").value = monthsAgo(parseInt(c.dataset.months)); $("#f_date_max").value=""; }
+    else if(c.dataset.year==="thisyear"){ $("#f_date_min").value = new Date().getFullYear()+"-01-01"; $("#f_date_max").value=""; }
+  }));
+
+  // section change clears naf hint; reset
+  $("#resetFilters").addEventListener("click", ()=>{ writeFiltersToUI(blankFilters()); $$("#dateChips .chip").forEach(x=>x.classList.remove("on")); });
+
+  // sort
+  $("#sortSelect").addEventListener("change", ()=>{ state.sort = $("#sortSelect").value; applyClientFilters(); renderResults(); });
+
+  // header sorting
+  $$("thead th[data-sort]").forEach(th=> th.addEventListener("click", ()=>{
+    const s = th.dataset.sort;
+    if(s==="date") state.sort = state.sort==="date_desc"?"date_asc":"date_desc";
+    else if(s==="name") state.sort = "name_asc";
+    else if(s==="intent") state.sort = "intent_desc";
+    $("#sortSelect").value = state.sort; applyClientFilters(); renderResults();
+  }));
+
+  // drawer
+  $("#closeDrawer").addEventListener("click", closeDrawer);
+  $("#overlay").addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeDrawer(); });
+
+  // toggle filters mobile
+  $("#toggleFilters").addEventListener("click", ()=> $("#filters").classList.toggle("collapsed"));
+
+  // export/import
+  $("#exportBtn").addEventListener("click", exportEnrich);
+  $("#importBtn").addEventListener("click", ()=> $("#importFile").click());
+  $("#importFile").addEventListener("change", e=>{ if(e.target.files[0]) importEnrich(e.target.files[0]); });
+
+  // chat IA
+  $("#chatBtn").addEventListener("click", openChat);
+  $("#closeChat").addEventListener("click", closeChat);
+  $("#chatSend").addEventListener("click", sendChat);
+  $("#chatSettingsBtn").addEventListener("click", openSettings);
+  $("#chatBox").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendChat(); } });
+  $("#chatBox").addEventListener("input", e=>{ e.target.style.height="auto"; e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"; });
+
+  // settings
+  $("#settingsBtn").addEventListener("click", openSettings);
+  $("#settingsCancel").addEventListener("click", closeSettings);
+  $("#settingsSave").addEventListener("click", saveSettings);
+  $("#settingsOverlay").addEventListener("click", e=>{ if(e.target===$("#settingsOverlay")) closeSettings(); });
+
+  $("#smartInput").focus();
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>
