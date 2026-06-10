@@ -943,6 +943,15 @@ function clearOneFilter(key){
 function formatSiren(s){ return s? s.replace(/(\d{3})(\d{3})(\d{3})/,"$1 $2 $3"):"—"; }
 function sectionLabelFromNaf(sec){ return sec? (SECTIONS[sec]||"") : ""; }
 
+// N° TVA intracommunautaire FR, calculé depuis le SIREN : clé = (12 + 3*(SIREN mod 97)) mod 97
+function tvaIntra(siren){
+  if(!siren || !/^\d{9}$/.test(siren)) return null;
+  const key = (12 + 3 * (parseInt(siren,10) % 97)) % 97;
+  return "FR" + String(key).padStart(2,"0") + siren;
+}
+// EORI candidat France = FR + SIRET (14 chiffres), à confirmer auprès des douanes
+function eoriCandidate(siret){ return (siret && /^\d{14}$/.test(siret)) ? "FR"+siret : null; }
+
 // ===================== Detail drawer =====================
 async function openDetail(r){
   const e = enrichStore[r.siren]||{};
@@ -1011,6 +1020,16 @@ async function openDetail(r){
       <dl class="kv">${finYears.slice(0,3).map(y=>`<dt>${y}</dt><dd>CA : ${fmtMoney(fin[y].ca)} · Résultat net : ${fmtMoney(fin[y].resultat_net)}</dd>`).join("")}</dl></div>`:""}
 
     <div class="sec">
+      <h3>🌍 International & documents</h3>
+      <dl class="kv">
+        <dt>N° TVA intra.</dt><dd>${tvaIntra(r.siren) ? `<span class="siren-mono">${tvaIntra(r.siren)}</span> <span id="vatStatus" class="muted">· vérification VIES…</span>` : "—"}</dd>
+        <dt>EORI (candidat)</dt><dd>${eoriCandidate(sec.siret) ? `<span class="siren-mono">${eoriCandidate(sec.siret)}</span> · <a target="_blank" href="https://ec.europa.eu/taxation_customs/dds2/eos/eori_validation.jsp">vérifier import/export ↗</a>` : "<span class='muted'>SIRET indisponible</span>"}</dd>
+        <dt>Bilans & actes</dt><dd><a target="_blank" href="https://data.inpi.fr/entreprises/${esc(r.siren)}">Voir les bilans déposés (INPI) ↗</a></dd>
+      </dl>
+      <div class="hint">TVA calculée depuis le SIREN ; EORI = n° candidat (FR + SIRET) à confirmer auprès des douanes.</div>
+    </div>
+
+    <div class="sec">
       <h3>📰 Annonces légales (BODACC) <span class="muted" id="bodaccStatus">chargement…</span></h3>
       <div id="bodaccList"><div class="muted">Recherche des annonces…</div></div>
     </div>
@@ -1048,6 +1067,27 @@ async function openDetail(r){
 
   openDrawer();
   loadBodacc(r.siren);
+  loadIntl(tvaIntra(r.siren));
+}
+
+// Validation du n° TVA via l'API REST VIES (Commission européenne), avec repli gracieux
+async function loadIntl(vat){
+  const el = document.getElementById("vatStatus");
+  if(!el || !vat) return;
+  const num = vat.slice(2); // retire "FR"
+  try {
+    const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), 6000);
+    const r = await fetch(`https://ec.europa.eu/taxation_customs/vies/rest-api/ms/FR/vat/${num}`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if(!r.ok) throw new Error("http");
+    const d = await r.json();
+    const ok = d.valid===true || d.isValid===true;
+    el.innerHTML = ok
+      ? '· <span style="color:var(--accent-2);font-weight:600">✓ actif (VIES)</span>'
+      : '· <span class="muted">inactif au registre VIES</span>';
+  } catch(e){
+    el.innerHTML = '· <a target="_blank" href="https://ec.europa.eu/taxation_customs/vies/#/vat-validation">vérifier sur VIES ↗</a>';
+  }
 }
 
 async function loadBodacc(siren){
