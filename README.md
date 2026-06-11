@@ -37,15 +37,29 @@ Aucune clé requise pour ces sources. Le chat IA utilise ta clé API Anthropic (
 
 > Pour un usage partagé/public sécurisé, il faudra plus tard un petit proxy serverless (Vercel/Cloudflare) qui garde la clé côté serveur. Le site n'est plus purement statique à ce moment-là.
 
+## Enrichissements fiche détail
+
+- **N° TVA intracommunautaire** calculé depuis le SIREN + validation VIES.
+- **EORI (candidat)** + lien de vérification douanes (signal import/export).
+- **Bilans & actes** : lien vers les documents déposés (INPI).
+
+## Signal « recrutement en cours » (France Travail) — optionnel, gratuit
+
+Le signal d'intention le plus fort (une entreprise qui recrute a un besoin immédiat).
+Nécessite un petit proxy serverless gratuit (la clé France Travail ne peut pas vivre
+sur GitHub Pages). Voir **BACKEND-france-travail.md** + `francetravail-proxy.js`.
+Une fois déployé, renseigne l'URL du proxy dans ⚙︎ → la fiche affiche les postes ouverts.
+
 ## Limites & feuille de route (vers un Apollo/Lemlist FR)
 
-Réalisable aujourd'hui (fait) : recherche, score d'intention sur données structurées, signaux BODACC, qualification IA.
+Fait : recherche, score d'intention, signaux BODACC, qualification IA, TVA/EORI/bilans,
+signal recrutement France Travail (via proxy gratuit).
 
-Étapes suivantes (nécessitent un backend) :
+Étapes suivantes :
 
-- **Signaux de recrutement** via l'API France Travail (offres d'emploi) — intent signal classique.
-- **Levées de fonds** et actualités (agrégation de sources).
-- **Enrichissement contact** (emails/téléphones de décideurs) — via fournisseurs tiers.
+- **Levées de fonds** : pas d'API officielle gratuite ; approximation possible par veille presse (backend).
+- **Activité LinkedIn** : pas d'API publique, scraping interdit (ToS) — voie propre = enrichissement payant. Non implémenté.
+- **Enrichissement contact** (emails/téléphones de décideurs) — via fournisseurs tiers payants.
 - **Suivi dans le temps** (CRM léger) et alertes sur nouveaux signaux.
 
 > Pas d'envoi de campagnes automatisées : l'outil reste une couche d'**intelligence & de données**, pas d'outreach.

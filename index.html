@@ -495,6 +495,9 @@
     <label>Modèle</label>
     <input type="text" id="modelInput" placeholder="claude-sonnet-4-6" />
     <div class="warn">🔒 Ta clé est stockée <b>uniquement dans ce navigateur</b> (localStorage), jamais dans le code du site ni envoyée ailleurs qu'à l'API d'Anthropic. Ne partage pas cette page avec ta clé saisie. Obtiens une clé sur console.anthropic.com.</div>
+    <label>Proxy recrutement — France Travail (optionnel)</label>
+    <input type="text" id="ftProxyInput" placeholder="https://xxx.workers.dev" />
+    <div class="hint">URL de ton Cloudflare Worker (signal « recrutement en cours »). Voir le guide BACKEND-france-travail.md. La clé France Travail reste sur le serveur, jamais ici.</div>
     <div class="modal-actions">
       <button class="btn ghost" id="settingsCancel">Annuler</button>
       <button class="btn primary" id="settingsSave">Enregistrer</button>
@@ -979,6 +982,11 @@ async function openDetail(r){
     </div>
 
     <div class="sec">
+      <h3>🔥 Signaux chauds — recrutement <span class="muted" id="hiringStatus"></span></h3>
+      <div id="hiringList"><div class="muted">…</div></div>
+    </div>
+
+    <div class="sec">
       <h3>🏢 Identité</h3>
       <dl class="kv">
         <dt>Dénomination</dt><dd>${esc(r.nom_complet||r.nom_raison_sociale||"—")}</dd>
@@ -1068,6 +1076,34 @@ async function openDetail(r){
   openDrawer();
   loadBodacc(r.siren);
   loadIntl(tvaIntra(r.siren));
+  loadHiring(r.nom_complet||r.nom_raison_sociale||"", sec.commune||"", sec.departement||"");
+}
+
+// Signal "recrutement en cours" via le proxy France Travail (clé côté serveur)
+async function loadHiring(name, commune, dep){
+  const list = document.getElementById("hiringList");
+  const status = document.getElementById("hiringStatus");
+  if(!list) return;
+  const proxy = getFtProxy();
+  if(!proxy){
+    list.innerHTML = '<div class="muted">Active ce signal : ⚙︎ → renseigne l\'URL de ton proxy France Travail (gratuit, clé côté serveur). Guide : <b>BACKEND-france-travail.md</b>.</div>';
+    return;
+  }
+  list.innerHTML = '<div class="muted">Recherche des offres d\'emploi…</div>';
+  try {
+    const p = new URLSearchParams(); p.set("name", name||"");
+    if(commune) p.set("commune", commune); else if(dep) p.set("departement", dep);
+    const r = await fetch(`${proxy}/?${p.toString()}`);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    if(status) status.textContent = d.count ? `· ${d.count} offre(s)` : "";
+    if(!d.count){ list.innerHTML = '<div class="muted">Aucune offre d\'emploi détectée pour cette entreprise actuellement.</div>'; return; }
+    list.innerHTML = `<div class="signal-row"><span class="sdot hot"></span><div><b>🔥 Recrute en ce moment — ${d.count} offre(s) ouverte(s)</b><div class="cmeta">Signal d'intention fort : besoin opérationnel immédiat.</div></div></div>` +
+      d.offres.map(o=>`<div class="estab"><div class="et-h"><b>${esc(o.intitule||"Offre")}</b><span class="muted">${esc(o.type||"")}</span></div><div class="cmeta">${esc(o.lieu||"")}${o.date?` · ${esc(fmtDate(String(o.date).slice(0,10)))}`:""}${o.url?` · <a target="_blank" href="${esc(o.url)}">voir l'offre ↗</a>`:""}</div></div>`).join("");
+  } catch(e){
+    list.innerHTML = `<div class="muted">Signal recrutement indisponible (${esc(e.message)}). Vérifie l'URL du proxy dans ⚙︎.</div>`;
+  }
 }
 
 // Validation du n° TVA via l'API REST VIES (Commission européenne), avec repli gracieux
@@ -1196,9 +1232,11 @@ function importEnrich(file){
 // ===================== Chat IA (API Claude) =====================
 const KEY_STORE = "prospechercheur_claude_key";
 const MODEL_STORE = "prospechercheur_claude_model";
+const FT_PROXY_STORE = "prospechercheur_ft_proxy";
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 function getKey(){ try { return localStorage.getItem(KEY_STORE)||""; } catch(e){ return ""; } }
 function getModel(){ try { return localStorage.getItem(MODEL_STORE)||DEFAULT_MODEL; } catch(e){ return DEFAULT_MODEL; } }
+function getFtProxy(){ try { return (localStorage.getItem(FT_PROXY_STORE)||"").replace(/\/+$/,""); } catch(e){ return ""; } }
 
 const CHAT_SYSTEM = `Tu es l'assistant de prospection de Pascal EK Loui, Product Builder IA-First freelance basé à Paris.
 Ton rôle : aider à trouver et QUALIFIER des entreprises françaises pour la prospection commerciale (jamais d'envoi de campagne — uniquement recherche, scoring, qualification).
@@ -1374,12 +1412,13 @@ function renderChatEmpty(){
 function openChat(){ $("#chatDrawer").classList.add("open"); $("#chatModelLabel").textContent = "Modèle : "+getModel()+(getKey()?"":" · clé non configurée"); if(!chatMessages.length) renderChatEmpty(); $("#chatBox").focus(); }
 function closeChat(){ $("#chatDrawer").classList.remove("open"); }
 
-function openSettings(){ $("#apiKeyInput").value = getKey(); $("#modelInput").value = getModel(); $("#settingsOverlay").classList.add("open"); }
+function openSettings(){ $("#apiKeyInput").value = getKey(); $("#modelInput").value = getModel(); $("#ftProxyInput").value = getFtProxy(); $("#settingsOverlay").classList.add("open"); }
 function closeSettings(){ $("#settingsOverlay").classList.remove("open"); }
 function saveSettings(){
   try {
     localStorage.setItem(KEY_STORE, $("#apiKeyInput").value.trim());
     localStorage.setItem(MODEL_STORE, $("#modelInput").value.trim()||DEFAULT_MODEL);
+    localStorage.setItem(FT_PROXY_STORE, $("#ftProxyInput").value.trim());
   } catch(e){}
   $("#chatModelLabel").textContent = "Modèle : "+getModel()+(getKey()?"":" · clé non configurée");
   closeSettings();
