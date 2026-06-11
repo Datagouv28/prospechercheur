@@ -737,6 +737,7 @@ async function runSearch(page=1){
   }
   state.sort = $("#sortSelect").value || state.sort || "";
   state.dateMode = !!(f.date_min || f.date_max);
+  state.bodaccMode = false;
   renderLoading();
   try {
     if(state.dateMode) await runSearchDate(f);
@@ -816,13 +817,114 @@ function applySort(){
   else { sortRows(state.rawResults, state.sort); state.results = state.rawResults; renderResults(); }
 }
 
-// Navigation de page (pagination serveur ou pagination locale en mode date)
+// Navigation de page (pagination serveur, ou pagination locale en mode date/créations)
 function goToPage(p){
   if(p<1 || p>state.totalPages) return;
   state.page = p;
-  if(state.dateMode) renderDatePage();
+  if(state.bodaccMode) renderCreationsPage();
+  else if(state.dateMode) renderDatePage();
   else runSearchServer(state.filters, p);
   window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+// ===================== Mode "créations récentes" (BODACC) =====================
+// recherche-entreprises ne sait pas trier par date ; BODACC publie les
+// immatriculations triables par date → la bonne source pour les entreprises
+// RÉCENTES. L'activité figure dans l'annonce, ce qui permet de filtrer par
+// secteur (ex. "vend des produits physiques", "tech").
+const KW_PHYSICAL = {
+  require: ["vente","commerce","négoce","negoce","distribution","revente","achat-revente","achat et revente","achat et la revente","produit","objet","article","marchandise","import","export","boutique","magasin","détail","detail","épicerie","epicerie","textile","habillement","prêt-à-porter","pret-a-porter","chaussure","cosmétique","cosmetique","alimentaire","mobilier","meuble","décoration","decoration","équipement","equipement","accessoire","bijou","fabrication","brasserie","maroquinerie","jouet","matériel","materiel"],
+  exclude: ["logiciel","saas","application","prestation de service","prestations de services","conseil","immobili","holding","marchand de biens","location","coiffure","formation","développement","developpement informatique","édition de logiciel","edition de logiciel","restauration","agence","marketing","communication"]
+};
+const KW_TECH = {
+  require: ["logiciel","saas","application","applicatif","plateforme","plate-forme","numérique","numerique","digital","informatique","développement web","developpement web","site web","intelligence artificielle"," ia "," ia,","data","cloud","cyber","édition de logiciel","edition de logiciel","tech","mobile","télécom","telecom","objets connectés"],
+  exclude: []
+};
+
+function bodaccActivite(a){
+  try {
+    const le = typeof a.listeetablissements==="string" ? JSON.parse(a.listeetablissements) : a.listeetablissements;
+    const e = le && le.etablissement ? (Array.isArray(le.etablissement)?le.etablissement[0]:le.etablissement) : null;
+    if(e && e.activite) return String(e.activite);
+  } catch(e){}
+  return "";
+}
+function bodaccToRow(a){
+  let dc = a.dateparution;
+  try { const acte = typeof a.acte==="string"?JSON.parse(a.acte):a.acte; dc = (acte && (acte.dateCommencementActivite||acte.dateImmatriculation)) || a.dateparution; } catch(e){}
+  const siren = Array.isArray(a.registre) ? String(a.registre[0]||"").replace(/\D/g,"") : "";
+  return { __bodacc:true, nom_complet:a.commercant||"—", nom_raison_sociale:a.commercant||"", siren,
+    date_creation:dc, activite_libelle:bodaccActivite(a), etat_administratif:"A", nombre_etablissements:1,
+    finances:{}, complements:{}, dirigeants:[],
+    siege:{ libelle_commune:a.ville, code_postal:a.cp, departement:a.numerodepartement },
+    activite_principale:"", section_activite_principale:"" };
+}
+
+async function runCreationsSearch(opts){
+  opts = opts||{};
+  state.dateMode = false; state.bodaccMode = true;
+  const kw = opts.kind==="physical" ? KW_PHYSICAL : opts.kind==="tech" ? KW_TECH : null;
+  const minM = opts.minMonths!=null?opts.minMonths:0, maxM = opts.maxMonths!=null?opts.maxMonths:24;
+  state.creationsLabel = opts.kind==="physical" ? "vendeurs de produits physiques" : opts.kind==="tech" ? "startups tech" : "créations récentes";
+  state.creationsWindow = { minM, maxM, dep: opts.dep||"" };
+  state.filters = { ...blankFilters(), dep: opts.dep||"", _creations:true };
+  writeFiltersToUI(state.filters);
+  renderLoading();
+  try {
+    const newest = monthsAgo(minM), oldest = monthsAgo(maxM);
+    const seen = new Set(); const rows = [];
+    const maxPages = kw ? 8 : 4; // on scanne plus quand on filtre l'activité
+    let scanned = 0;
+    for(let pg=0; pg<maxPages && rows.length<60; pg++){
+      let where = 'familleavis="creation"';
+      if(opts.dep) where += ` and numerodepartement="${opts.dep}"`;
+      const url = `${BODACC}?where=${encodeURIComponent(where)}&order_by=dateparution%20DESC&limit=100&offset=${pg*100}`;
+      const res = await fetch(url);
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const d = await res.json();
+      const batch = d.results||[]; scanned += batch.length;
+      batch.map(bodaccToRow).forEach(r=>{
+        if(!r.siren || seen.has(r.siren)) return;
+        if((r.date_creation||"") < oldest || (r.date_creation||"") > newest) return;
+        if(kw){
+          const a = (r.activite_libelle||"").toLowerCase();
+          if(!a) return;
+          if(kw.exclude.some(k=> a.includes(k))) return;
+          if(!kw.require.some(k=> a.includes(k))) return;
+        }
+        seen.add(r.siren); rows.push(r);
+      });
+      if(batch.length < 100) break;
+      await new Promise(z=> setTimeout(z, 160));
+    }
+    rows.forEach(r=> r._intent = intentScore(r));
+    state.creationsAll = rows; state.creationsScanned = scanned;
+    state.totalResults = rows.length;
+    state.totalPages = Math.max(1, Math.ceil(rows.length/state.perPage));
+    state.page = 1;
+    renderCreationsPage();
+    window.scrollTo({ top:0, behavior:"smooth" });
+  } catch(e){
+    renderMessage("⚠️","Créations indisponibles","Impossible de joindre BODACC ("+esc(e.message)+").");
+  }
+}
+
+function renderCreationsPage(){
+  const start = (state.page-1)*state.perPage;
+  state.results = state.creationsAll.slice(start, start+state.perPage);
+  renderResults();
+}
+
+// Ouvre la fiche complète d'une création BODACC en récupérant ses données via SIREN
+async function openDetailBySiren(r){
+  if(!r || !r.__bodacc || !r.siren){ openDetail(r); return; }
+  try {
+    const res = await fetch(`${API}?q=${r.siren}&per_page=1`);
+    const d = await res.json();
+    const full = (d.results||[]).find(x=> x.siren===r.siren) || (d.results||[])[0];
+    if(full){ full._intent = intentScore(full); openDetail(full); return; }
+  } catch(e){}
+  openDetail(r); // repli : fiche limitée à partir des données BODACC
 }
 
 // ===================== Intent signals (scoring) =====================
@@ -922,7 +1024,9 @@ function renderResults(){
   const rows = state.results;
   renderActiveFilters();
   if(!rows.length){
-    if(state.dateMode){
+    if(state.bodaccMode){
+      renderMessage("🤷","Aucune création correspondante", `Aucune ${esc(state.creationsLabel||"création")} trouvée parmi les ${state.creationsScanned||0} immatriculations récentes analysées. Élargis la fenêtre de date ou retire le département.`);
+    } else if(state.dateMode){
       renderMessage("🤷","Aucune création sur la période", `Aucune entreprise créée sur la date choisie parmi les ${state.dateScanned||0} résultats les plus pertinents analysés. Élargis la date, ou ajoute un critère (ville, NAF) pour mieux cibler.`);
     } else {
       renderMessage("🤷","Aucun résultat", "Aucune entreprise ne correspond à ces critères.");
@@ -930,7 +1034,11 @@ function renderResults(){
     $("#resultCount").innerHTML = `<b>0</b> résultat`;
     return;
   }
-  if(state.dateMode){
+  if(state.bodaccMode){
+    const w = state.creationsWindow||{};
+    $("#resultCount").innerHTML = `<b>${state.totalResults.toLocaleString("fr-FR")}</b> ${esc(state.creationsLabel||"créations récentes")} · page ${state.page}/${state.totalPages}` +
+      ` <span class="muted">· immatriculations BODACC, triées par date${w.dep?` · dépt ${esc(w.dep)}`:""}</span>`;
+  } else if(state.dateMode){
     $("#resultCount").innerHTML = `<b>${state.totalResults.toLocaleString("fr-FR")}</b> entreprise(s) créée(s) sur la période · page ${state.page}/${state.totalPages}` +
       (state.dateExhaustive
         ? ` <span class="muted">(périmètre complet)</span>`
@@ -943,7 +1051,7 @@ function renderResults(){
   $("#tbody").innerHTML = rows.map((r,i)=>{
     const labels = labelsOf(r).slice(0,3).map(l=>`<span class="badge label">${l}</span>`).join("");
     const enriched = enrichStore[r.siren] && Object.values(enrichStore[r.siren]).some(v=>v&&String(v).trim()) ? `<span class="enriched-dot" title="Fiche enrichie"></span>`:"";
-    const naf = r.activite_principale ? `${esc(r.activite_principale)}` : "";
+    const naf = r.activite_principale ? `${esc(r.activite_principale)}` : (r.activite_libelle ? `<span title="${esc(r.activite_libelle)}">${esc(r.activite_libelle.slice(0,70))}${r.activite_libelle.length>70?"…":""}</span>` : "—");
     const sec = r.siege||{};
     // Si un filtre géo est actif, afficher l'établissement qui matche réellement
     // (l'API filtre sur les établissements, pas seulement le siège).
@@ -972,7 +1080,7 @@ function renderResults(){
   }).join("");
 
   $$("#tbody tr[data-idx]").forEach(tr=>{
-    tr.addEventListener("click", ()=> openDetail(state.results[parseInt(tr.dataset.idx)]));
+    tr.addEventListener("click", ()=>{ const row = state.results[parseInt(tr.dataset.idx)]; (row && row.__bodacc) ? openDetailBySiren(row) : openDetail(row); });
   });
   renderPager();
 }
@@ -990,6 +1098,11 @@ function renderPager(){
 function renderActiveFilters(){
   const f = state.filters; const tags=[];
   const add=(label,val,key)=> tags.push(`<span class="tag"><b>${label}</b> ${esc(val)} <span class="x" data-clear="${key}">✕</span></span>`);
+  if(state.bodaccMode){
+    const w = state.creationsWindow||{};
+    $("#activeFilters").innerHTML = `<span class="tag"><b>créations</b> ${esc(state.creationsLabel||"récentes")}${w.dep?` · dépt ${esc(w.dep)}`:""} · ${w.minM||0}–${w.maxM||24} mois</span>`;
+    return;
+  }
   if(f.q) add("texte",f.q,"q");
   if(f.naf) add("NAF",f.naf,"naf");
   if(f.section) add("secteur",SECTIONS[f.section]||f.section,"section");
@@ -1505,7 +1618,7 @@ function getPresets(){
   return [
     { group:"Product Builder IA", color:"#5b8cff", presets:[
       { label:"💻 SaaS / Tech B2B (PME)", f:{ section:"J", cat:"PME", etat:"A" } },
-      { label:"🚀 Startups tech < 1 an", f:{ section:"J", etat:"A", date_min: monthsAgo(12) } },
+      { label:"🚀 Startups tech < 1 an", mode:"creations", f:{ kind:"tech", minMonths:0, maxMonths:12 } },
       { label:"💳 Fintech / Assurance", f:{ section:"K", cat:"PME", etat:"A" } },
       { label:"⚖️ Legaltech", f:{ q:"legaltech", section:"J", etat:"A" } },
       { label:"🎓 Organismes de formation", f:{ l_formation:true, etat:"A" } },
@@ -1518,7 +1631,9 @@ function getPresets(){
       { label:"🏛️ Cabinets récents < 1 an", f:{ naf:"69.10Z", etat:"A", date_min: monthsAgo(12) } },
     ]},
     { group:"Sceniq", color:"#a855f7", presets:[
-      { label:"⚙️ À configurer — dis-moi la cible", f:{}, todo:true },
+      { label:"🛍️ Produits physiques · 1 mois–2 ans", mode:"creations", f:{ kind:"physical", minMonths:1, maxMonths:24 } },
+      { label:"🛍️ Produits physiques · Paris", mode:"creations", f:{ kind:"physical", minMonths:1, maxMonths:24, dep:"75" } },
+      { label:"🛍️ Produits physiques · < 6 mois", mode:"creations", f:{ kind:"physical", minMonths:1, maxMonths:6 } },
     ]},
   ];
 }
@@ -1537,6 +1652,7 @@ function renderPresets(){
       const g = groups.find(x=>x.group===btn.dataset.g);
       const p = g.presets[parseInt(btn.dataset.i)];
       if(p.todo){ $("#smartInput").focus(); return; }
+      if(p.mode==="creations"){ runCreationsSearch(p.f); return; }
       applyPreset(p.f);
     });
   });
