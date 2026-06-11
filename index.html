@@ -936,7 +936,8 @@ function renderResults(){
         ? ` <span class="muted">(périmètre complet)</span>`
         : ` <span class="muted">· trouvées sur ${state.dateScanned} analysés (les plus pertinents) — affine pour un comptage exhaustif</span>`);
   } else {
-    $("#resultCount").innerHTML = `<b>${state.totalResults.toLocaleString("fr-FR")}</b> entreprise(s) · page ${state.page}/${state.totalPages}`;
+    const totalLabel = state.totalResults>=10000 ? "10 000+" : state.totalResults.toLocaleString("fr-FR");
+    $("#resultCount").innerHTML = `<b>${totalLabel}</b> entreprise(s) · page ${state.page}/${state.totalPages}`;
   }
 
   $("#tbody").innerHTML = rows.map((r,i)=>{
@@ -944,7 +945,13 @@ function renderResults(){
     const enriched = enrichStore[r.siren] && Object.values(enrichStore[r.siren]).some(v=>v&&String(v).trim()) ? `<span class="enriched-dot" title="Fiche enrichie"></span>`:"";
     const naf = r.activite_principale ? `${esc(r.activite_principale)}` : "";
     const sec = r.siege||{};
-    const loc = [sec.libelle_commune||sec.commune, sec.code_postal].filter(Boolean).join(" · ");
+    // Si un filtre géo est actif, afficher l'établissement qui matche réellement
+    // (l'API filtre sur les établissements, pas seulement le siège).
+    const geoActive = !!(state.filters.dep || state.filters.cp || state.filters.commune_code);
+    const me = (geoActive && r.matching_etablissements && r.matching_etablissements[0]) ? r.matching_etablissements[0] : null;
+    const locSrc = me || sec;
+    const loc = [locSrc.libelle_commune||locSrc.commune, locSrc.code_postal].filter(Boolean).join(" · ");
+    const locNote = me ? ` <span class="muted" title="Établissement correspondant au filtre (le siège est ailleurs)">· étab.</span>` : "";
     const etat = r.etat_administratif==="A"
       ? (isRecent(r)?`<span class="badge new">Nouvelle</span>`:`<span class="badge active">Active</span>`)
       : `<span class="badge closed">Fermée</span>`;
@@ -957,7 +964,7 @@ function renderResults(){
           <div style="margin-top:4px">${labels}</div></td>
       <td class="opt"><div>${naf}</div><div class="cmeta">${esc(sectionLabelFromNaf(r.section_activite_principale))}</div></td>
       <td><div>${fmtDate(r.date_creation)}</div></td>
-      <td class="opt">${esc(loc)||"—"}</td>
+      <td class="opt">${esc(loc)||"—"}${locNote}</td>
       <td><span class="intent-pill ${tier.cls}">${tier.label} · ${intent.score}</span>
           <div class="score-bar"><i style="width:${intent.score}%;background:${barColor}"></i></div></td>
       <td>${etat}</td>
