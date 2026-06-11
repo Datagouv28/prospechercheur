@@ -87,9 +87,10 @@
   /* Filters sidebar */
   aside.filters {
     width: 290px; flex-shrink: 0; border-right: 1px solid var(--border);
-    padding: 18px 16px 60px; height: calc(100vh - 61px); overflow-y: auto; position: sticky; top: 61px;
+    padding: 18px 16px 0; height: calc(100vh - 61px); overflow-y: auto; position: sticky; top: 61px;
   }
   aside.filters.collapsed { display: none; }
+  .apply-bar { position: sticky; bottom: 0; background: var(--bg); padding: 12px 0 8px; margin-top: 4px; border-top: 1px solid var(--border); z-index: 6; }
   .filter-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
   .filter-head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin: 0; }
   .fgroup { margin-bottom: 18px; border-bottom: 1px solid var(--border-soft); padding-bottom: 16px; }
@@ -359,7 +360,7 @@
           <input type="date" id="f_date_min" title="Créée après" />
           <input type="date" id="f_date_max" title="Créée avant" />
         </div>
-        <div class="hint">Filtré côté navigateur sur la date de création réelle.</div>
+        <div class="hint">L'API ne filtre pas par date : on analyse les résultats les plus pertinents puis on filtre ici. Ajoute une ville ou un NAF précis pour un comptage exhaustif.</div>
       </div>
 
       <div class="fgroup">
@@ -421,7 +422,7 @@
         <input type="text" id="f_dir_prenom" placeholder="Prénom du dirigeant" />
       </div>
 
-      <button class="btn primary" id="applyFilters" style="width:100%">Appliquer les filtres</button>
+      <div class="apply-bar"><button class="btn primary" id="applyFilters" style="width:100%">Appliquer les filtres</button></div>
     </aside>
 
     <main class="content">
@@ -726,44 +727,102 @@ function hasAnyCriteria(f){
 }
 
 // ===================== Search =====================
+const SCAN_PAGES_MAX = 8; // filtre date : jusqu'à 8 × 25 = 200 entreprises analysées
+
 async function runSearch(page=1){
   const f = state.filters;
   if(!hasAnyCriteria(f)){
     renderMessage("🔍","Ajoute au moins un critère","Saisis un mot-clé, une activité, une ville ou un label pour lancer la recherche.");
     return;
   }
-  state.page = page;
+  state.sort = $("#sortSelect").value || state.sort || "";
+  state.dateMode = !!(f.date_min || f.date_max);
   renderLoading();
-  const qs = buildQuery(f, page);
-  state.lastQueryString = qs.toString();
   try {
-    const res = await fetch(`${API}?${qs.toString()}`);
-    if(!res.ok){ throw new Error("HTTP "+res.status); }
-    const data = await res.json();
-    state.rawResults = data.results||[];
-    state.totalResults = data.total_results||0;
-    state.totalPages = data.total_pages||1;
-    // client-side date filtering
-    applyClientFilters();
-    renderResults();
+    if(state.dateMode) await runSearchDate(f);
+    else await runSearchServer(f, page);
   } catch(e){
     renderMessage("⚠️","Erreur de connexion","Impossible de joindre l'API ("+esc(e.message)+"). Réessaie dans un instant.");
   }
 }
 
-function applyClientFilters(){
-  const f = state.filters;
-  let rows = state.rawResults.slice();
-  if(f.date_min) rows = rows.filter(r => (r.date_creation||"") >= f.date_min);
-  if(f.date_max) rows = rows.filter(r => (r.date_creation||"") <= f.date_max);
-  // pre-compute intent once per row
+// Recherche standard : pagination côté serveur, compteur = total RÉEL de l'API.
+async function runSearchServer(f, page){
+  state.page = page;
+  const qs = buildQuery(f, page);
+  state.lastQueryString = qs.toString();
+  const res = await fetch(`${API}?${qs.toString()}`);
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const data = await res.json();
+  state.rawResults = data.results||[];
+  state.totalResults = data.total_results||0;
+  state.totalPages = data.total_pages||1;
+  state.rawResults.forEach(r => { r._intent = intentScore(r); });
+  sortRows(state.rawResults, state.sort);
+  state.results = state.rawResults;
+  renderResults();
+}
+
+// Filtre date : l'API ne filtre PAS par date (per_page plafonné à 25). On analyse
+// plusieurs pages (les plus pertinentes) puis on filtre côté client. Le compteur
+// reflète le nombre RÉELLEMENT trouvé dans l'échantillon analysé (pas le total API).
+async function runSearchDate(f){
+  let all = []; let apiTotal = 0; let totalPagesApi = 1;
+  for(let p=1; p<=SCAN_PAGES_MAX; p++){
+    const qs = buildQuery(f, p);
+    state.lastQueryString = qs.toString();
+    const res = await fetch(`${API}?${qs.toString()}`);
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const data = await res.json();
+    if(p===1){ apiTotal = data.total_results||0; totalPagesApi = data.total_pages||1; }
+    all = all.concat(data.results||[]);
+    if(p >= totalPagesApi) break;
+    await new Promise(r => setTimeout(r, 160)); // respecte la limite 7 req/s
+  }
+  let rows = all.filter(r => {
+    if(f.date_min && (r.date_creation||"") < f.date_min) return false;
+    if(f.date_max && (r.date_creation||"") > f.date_max) return false;
+    return true;
+  });
   rows.forEach(r => { r._intent = intentScore(r); });
-  // sort
-  if(state.sort==="intent_desc") rows.sort((a,b)=> b._intent.score - a._intent.score);
-  else if(state.sort==="date_desc") rows.sort((a,b)=> (b.date_creation||"").localeCompare(a.date_creation||""));
-  else if(state.sort==="date_asc") rows.sort((a,b)=> (a.date_creation||"").localeCompare(b.date_creation||""));
-  else if(state.sort==="name_asc") rows.sort((a,b)=> (a.nom_complet||"").localeCompare(b.nom_complet||""));
-  state.results = rows;
+  sortRows(rows, state.sort || "date_desc");
+  state.dateAll = rows;
+  state.dateScanned = all.length;
+  state.dateApiTotal = apiTotal;
+  state.dateExhaustive = all.length >= apiTotal; // a-t-on analysé tout le périmètre ?
+  state.totalResults = rows.length;
+  state.totalPages = Math.max(1, Math.ceil(rows.length / state.perPage));
+  state.page = 1;
+  renderDatePage();
+}
+
+function renderDatePage(){
+  const start = (state.page-1) * state.perPage;
+  state.results = state.dateAll.slice(start, start + state.perPage);
+  renderResults();
+}
+
+function sortRows(rows, sort){
+  if(sort==="intent_desc") rows.sort((a,b)=> (b._intent?b._intent.score:0) - (a._intent?a._intent.score:0));
+  else if(sort==="date_desc") rows.sort((a,b)=> (b.date_creation||"").localeCompare(a.date_creation||""));
+  else if(sort==="date_asc") rows.sort((a,b)=> (a.date_creation||"").localeCompare(b.date_creation||""));
+  else if(sort==="name_asc") rows.sort((a,b)=> (a.nom_complet||"").localeCompare(b.nom_complet||""));
+}
+
+// Ré-applique le tri selon le mode courant (serveur ou date)
+function applySort(){
+  state.sort = $("#sortSelect").value;
+  if(state.dateMode){ sortRows(state.dateAll, state.sort); state.page=1; renderDatePage(); }
+  else { sortRows(state.rawResults, state.sort); state.results = state.rawResults; renderResults(); }
+}
+
+// Navigation de page (pagination serveur ou pagination locale en mode date)
+function goToPage(p){
+  if(p<1 || p>state.totalPages) return;
+  state.page = p;
+  if(state.dateMode) renderDatePage();
+  else runSearchServer(state.filters, p);
+  window.scrollTo({ top:0, behavior:"smooth" });
 }
 
 // ===================== Intent signals (scoring) =====================
@@ -863,13 +922,22 @@ function renderResults(){
   const rows = state.results;
   renderActiveFilters();
   if(!rows.length){
-    const note = state.totalResults>0 ? "Aucun résultat sur cette page après filtrage par date. Essaie d'élargir la plage de dates ou de changer de page." : "Aucune entreprise ne correspond à ces critères.";
-    renderMessage("🤷","Aucun résultat", note);
+    if(state.dateMode){
+      renderMessage("🤷","Aucune création sur la période", `Aucune entreprise créée sur la date choisie parmi les ${state.dateScanned||0} résultats les plus pertinents analysés. Élargis la date, ou ajoute un critère (ville, NAF) pour mieux cibler.`);
+    } else {
+      renderMessage("🤷","Aucun résultat", "Aucune entreprise ne correspond à ces critères.");
+    }
     $("#resultCount").innerHTML = `<b>0</b> résultat`;
     return;
   }
-  $("#resultCount").innerHTML = `<b>${state.totalResults.toLocaleString("fr-FR")}</b> entreprise(s) · page ${state.page}/${state.totalPages}` +
-    (state.filters.date_min||state.filters.date_max ? ` · <span class="muted">${rows.length} affichées après filtre date</span>`:"");
+  if(state.dateMode){
+    $("#resultCount").innerHTML = `<b>${state.totalResults.toLocaleString("fr-FR")}</b> entreprise(s) créée(s) sur la période · page ${state.page}/${state.totalPages}` +
+      (state.dateExhaustive
+        ? ` <span class="muted">(périmètre complet)</span>`
+        : ` <span class="muted">· trouvées sur ${state.dateScanned} analysés (les plus pertinents) — affine pour un comptage exhaustif</span>`);
+  } else {
+    $("#resultCount").innerHTML = `<b>${state.totalResults.toLocaleString("fr-FR")}</b> entreprise(s) · page ${state.page}/${state.totalPages}`;
+  }
 
   $("#tbody").innerHTML = rows.map((r,i)=>{
     const labels = labelsOf(r).slice(0,3).map(l=>`<span class="badge label">${l}</span>`).join("");
@@ -908,8 +976,8 @@ function renderPager(){
     <button id="prevPage" ${state.page<=1?"disabled":""}>← Précédent</button>
     <span>Page ${state.page} / ${state.totalPages}</span>
     <button id="nextPage" ${state.page>=state.totalPages?"disabled":""}>Suivant →</button>`;
-  $("#prevPage").onclick = ()=>{ if(state.page>1) runSearch(state.page-1); window.scrollTo({top:0,behavior:"smooth"}); };
-  $("#nextPage").onclick = ()=>{ if(state.page<state.totalPages) runSearch(state.page+1); window.scrollTo({top:0,behavior:"smooth"}); };
+  $("#prevPage").onclick = ()=> goToPage(state.page-1);
+  $("#nextPage").onclick = ()=> goToPage(state.page+1);
 }
 
 function renderActiveFilters(){
@@ -1468,11 +1536,11 @@ function renderPresets(){
 }
 
 function applyPreset(f){
-  const full = { ...blankFilters(), ...f };
+  // Couple le préset avec les filtres avancés déjà saisis à gauche (fusion) :
+  // le préset complète/affine la sélection au lieu de la réinitialiser.
+  const full = { ...readFiltersFromUI(), ...f };
   state.filters = full;
   writeFiltersToUI(full);
-  // reflect date chips
-  $$("#dateChips .chip").forEach(x=>x.classList.remove("on"));
   runSearch(1);
   window.scrollTo({ top:0, behavior:"smooth" });
 }
@@ -1514,7 +1582,7 @@ function init(){
   $("#resetFilters").addEventListener("click", ()=>{ writeFiltersToUI(blankFilters()); $$("#dateChips .chip").forEach(x=>x.classList.remove("on")); });
 
   // sort
-  $("#sortSelect").addEventListener("change", ()=>{ state.sort = $("#sortSelect").value; applyClientFilters(); renderResults(); });
+  $("#sortSelect").addEventListener("change", ()=> applySort());
 
   // header sorting
   $$("thead th[data-sort]").forEach(th=> th.addEventListener("click", ()=>{
@@ -1522,7 +1590,7 @@ function init(){
     if(s==="date") state.sort = state.sort==="date_desc"?"date_asc":"date_desc";
     else if(s==="name") state.sort = "name_asc";
     else if(s==="intent") state.sort = "intent_desc";
-    $("#sortSelect").value = state.sort; applyClientFilters(); renderResults();
+    $("#sortSelect").value = state.sort; applySort();
   }));
 
   // drawer
